@@ -1,0 +1,26 @@
+{
+  "name": "erc20_token_openzeppelin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LeoTungAnh/ERC20_Token_Openzeppelin.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LeoTungAnh/ERC20_Token_Openzeppelin/issues"
+  },
+  "homepage": "https://github.com/LeoTungAnh/ERC20_Token_Openzeppelin#readme",
+  "dependencies": {
+    "openzeppelin-solidity": "^4.4.1",
+    "save-dev": "^0.0.1-security"
+  }
+}
