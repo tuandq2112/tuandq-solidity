@@ -1,4 +1,4 @@
-// contracts/GLDToken.sol
+// contracts/IvirseToken.sol
 // SPDX-License-Identifier: MIT
 
 pragma solidity >=0.4.22 <0.9.0;
@@ -89,7 +89,7 @@ contract IvirseToken is ERC20, Ownable {
     function removeMinter(address _minterAddr) public onlyOwner{
         require(minter[_minterAddr], "Not minter");
         minter[_minterAddr] = false;
-        minterConsent[_minterAddr] = true;
+        // minterConsent[_minterAddr] = true;
         emit MinterRemoved(_minterAddr);
         
         uint256 i = 0;
