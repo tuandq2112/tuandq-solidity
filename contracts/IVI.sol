@@ -28,7 +28,7 @@ contract IvirseToken is ERC20, Ownable {
     * All three of these values are immutable: they can only be set once during
     * construction.
     */
-    constructor() ERC20("IVIRSECoin", "IVI") {
+    constructor() ERC20("IVIE", "IVI") {
         uint256 fractions = 10**uint256(18);
         _maxSupply = 888888888 * fractions;
         addMinter(_msgSender());
