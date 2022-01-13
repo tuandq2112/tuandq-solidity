@@ -3,6 +3,7 @@
 
 pragma solidity ^0.8.0;
 
+
 import "../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import "../node_modules/openzeppelin-solidity/contracts/access/AccessControlEnumerable.sol";
 
@@ -21,7 +22,7 @@ contract IHealthToken is ERC20, AccessControlEnumerable {
     event AddBurner(address indexed _burner);
     event RemoveMinter(address indexed _minter);
     event RemoveBurner(address indexed _burner);
-
+    
     constructor() ERC20("IHEALTHCoin", "IHI") {
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _setupRole(MINTER_ROLE, _msgSender());
@@ -104,3 +105,4 @@ contract IHealthToken is ERC20, AccessControlEnumerable {
         return burnerList;
     }
 }
+
