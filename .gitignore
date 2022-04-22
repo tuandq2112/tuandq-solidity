@@ -1,0 +1,8 @@
+# Ignore node_modules folder
+node_modules
+#build
+build
+#lock
+yarn.lock
+#lock2
+yarn-error.log
