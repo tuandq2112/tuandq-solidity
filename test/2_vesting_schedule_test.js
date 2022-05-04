@@ -1,6 +1,5 @@
 const IVIRSE = artifacts.require("IVIRSE");
 const VestingSchedule = artifacts.require("VestingSchedule");
-const truffleAssert = require("truffle-assertions");
 const {
   BN, // Big Number support
   constants, // Common constants, like the zero address and largest integers
@@ -10,17 +9,17 @@ const {
 } = require("@openzeppelin/test-helpers");
 
 contract("VestingSchedule", (accounts) => {
+  let ivi,
+    vesting,
+    owner = accounts[0],
+    totalToken = 100000000 * Math.pow(10, 18);
+  before("Deploy contracts", async () => {
+    ivi = await IVIRSE.deployed();
+    vesting = await VestingSchedule.deployed();
+    let times = await vesting.getTimes();
+    console.log("times", times);
+  });
   describe("Multiple contract", () => {
-    let ivi,
-      vesting,
-      owner = accounts[0],
-      totalToken = "200000";
-
-    before("Deploy contracts", async () => {
-      ivi = await IVIRSE.deployed();
-      vesting = await VestingSchedule.deployed(2, 2, ivi.address);
-    });
-
     it("Check mint if owner", async () => {
       await ivi.mint(owner, totalToken);
       let balance = await ivi.balanceOf(owner);

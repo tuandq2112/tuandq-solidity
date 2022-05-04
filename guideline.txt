@@ -1,0 +1,3 @@
+truffle migrate --network testnet  -f 5 --to 5
+ganache-cli --accounts=100
+cant' compare 2 bignumber
