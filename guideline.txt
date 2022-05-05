@@ -1,3 +1,5 @@
 truffle migrate --network testnet  -f 5 --to 5
 ganache-cli --accounts=100
 cant' compare 2 bignumber
+
+truffle migrate -f 1 --to 1 --network bsc
