@@ -31,8 +31,11 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
   ///@dev có thể mở rộng thành 1 array để mua bán bằng nhiều loại tiền
   IERC20 private _token;
 
-  ///@notice event khi mua bán nft
-  event NftEvent(address _from, address _to, uint256 _tokenId);
+  ///@notice event khi bán nft
+  event NftSelled(address _seller, uint256 _tokenId);
+
+  ///@notice event khi mua nft
+  event NftBought(address _from, address _to, uint256 _tokenId);
 
   ///@notice event khi thêm minter
   event MinterAdded(address indexed _minterAddr);
@@ -42,6 +45,9 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
 
   ///@notice check địa chỉ mà minter
   mapping(address => bool) public minter;
+
+  ///@notice Check tokenId trong store hay không
+  mapping(uint256 => bool) private _inStore;
 
   ///@notice list lưu lại các minter
   address[] private minterList;
@@ -65,9 +71,34 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     _addMinter(minterAddr);
   }
 
+  ///@notice check minter
+  function isMinter(address minterAddress) public view returns (bool) {
+    return minter[minterAddress];
+  }
+
   /// @return trả lại list minter
   function getMinters() public view returns (address[] memory) {
     return minterList;
+  }
+
+  function removeMinter(address _minterAddr) public onlyOwner {
+    require(minter[_minterAddr], "Not minter");
+    minter[_minterAddr] = false;
+    // minterConsent[_minterAddr] = true;
+    emit MinterRemoved(_minterAddr);
+
+    uint256 i = 0;
+    address _minter;
+    while (i < minterList.length) {
+      _minter = minterList[i];
+      if (!minter[_minter]) {
+        minterList[i] = minterList[minterList.length - 1];
+        minterList.pop();
+        break;
+      } else {
+        i++;
+      }
+    }
   }
 
   /***
@@ -78,6 +109,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     _token = token;
     addMinter(msg.sender);
   }
+
   ///@notice tự tăng id khi mint, set quyền sở hữu của nft cho người mint.
   ///@dev uri là 1 đường dẫn ảnh hoặc 1 url get trả về dữ liệu của nft
   function safeMint(address to, string memory uri) public onlyMinter {
@@ -87,6 +119,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     _setTokenURI(tokenId, uri);
     _customOwners[tokenId] = to;
     _addItem(tokenId, to);
+    _inStore[tokenId] = false;
   }
 
   function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
@@ -107,8 +140,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     _token = newToken;
   }
 
-
-  ///@return trả về list nft đang được bán 
+  ///@return trả về list nft đang được bán
   function getPublicStore() public view returns (uint256[] memory) {
     return publicStore;
   }
@@ -118,48 +150,42 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     publicStore.push(_tokenId);
   }
 
-  ///@dev check nft có đang ở trong list được bán không 
-  ///@return true nếu đang được bán fasle nếu không tìm thấy
-  function _isInStore(uint256 _tokenId) private view returns (bool) {
-    for (uint256 i = 0; i < publicStore.length; i++) {
-      if (publicStore[i] == _tokenId) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-
-  ///@notice bán nft nếu là người sở hữu nft, giá tiền phải > 0 và nft chưa được bán 
+  ///@notice bán nft nếu là người sở hữu nft, giá tiền phải > 0 và nft chưa được bán
   function sellNft(uint256 tokenId, uint256 amount) public {
     require(msg.sender == _customOwners[tokenId], "Address is not owner");
-    require(!_isInStore(tokenId), "Token had been bought");
-    require(amount > 0, "Amount invalid");
-
+    require(_inStore[tokenId], "Token had been sell");
     _addItem(tokenId);
     _tokenIdToPrice[tokenId] = amount;
-    emit NftEvent(msg.sender, msg.sender, tokenId);
-  }
+    _inStore[tokenId] = true;
 
+    emit NftSelled(msg.sender, tokenId);
+  }
 
   ///@notice mua nếu token được ủy quyển = giá của nft
   ///@dev giá của nft lấy trong _tokenIdToPrice được set giá khi mua
   function purchase(uint256 tokenId) public {
-    require(_isInStore(tokenId), "Token had been bought");
+    require(!_inStore[tokenId], "Token had been bought");
     require(
       _token.allowance(msg.sender, address(this)) >= _tokenIdToPrice[tokenId],
-      "Not enough eth"
+      "Not enough token"
     );
-    for (uint256 i = 0; i < publicStore.length; i++) {
-      if (publicStore[i] == tokenId) {
-        publicStore[i] = publicStore[publicStore.length - 1];
+
+    uint256 i = 0;
+    uint256 removeId;
+    uint256 storeLength = publicStore.length;
+    while (i < storeLength) {
+      removeId = publicStore[i];
+      if (removeId == tokenId) {
+        publicStore[i] = publicStore[storeLength - 1];
         publicStore.pop();
         address tokenOwner = _customOwners[tokenId];
         _token.transferFrom(msg.sender, tokenOwner, _tokenIdToPrice[tokenId]);
         _changeOwner(tokenId, tokenOwner, msg.sender);
-        emit NftEvent(tokenOwner, msg.sender, tokenId);
-        tokenOwner = msg.sender;
+        _inStore[tokenId] = false;
+        emit NftBought(tokenOwner, msg.sender, tokenId);
         break;
+      } else {
+        i++;
       }
     }
   }
@@ -170,11 +196,12 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     address _from,
     address _to
   ) internal {
-    for (uint256 i = 0; i < _nfts[_from].length; i++) {
-      if (_nfts[_from][i] == _tokenId) {
-        _nfts[_from][i] = _nfts[_from][_nfts[_from].length - 1];
+    uint256[] storage listNft = _nfts[_from];
+    uint256 nftLength = listNft.length;
+    for (uint256 i = 0; i < nftLength; i++) {
+      if (listNft[i] == _tokenId) {
+        listNft[i] = listNft[nftLength - 1];
         _nfts[_from].pop();
-        _nfts[_from] = _nfts[_from];
         _addItem(_tokenId, _to);
         _customOwners[_tokenId] = _to;
         break;
@@ -197,7 +224,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     return _tokenIdToPrice[tokenId];
   }
 
-  ///@return lấy owner của nft 
+  ///@return lấy owner của nft
   function getOwnerById(uint256 tokenId) public view returns (address) {
     return _customOwners[tokenId];
   }
