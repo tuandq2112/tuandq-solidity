@@ -4,6 +4,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
+/**
+ *@author Ivirse team
+ *@title  Smart contract for. Users can get tokens after a period of time.
+ */
+
 contract TokenTimelock is Ownable {
   using SafeERC20 for IERC20;
   using SafeMath for uint256;
@@ -216,4 +221,5 @@ contract TokenTimelock is Ownable {
   function token() public view returns (IERC20) {
     return _token;
   }
+  
 }
