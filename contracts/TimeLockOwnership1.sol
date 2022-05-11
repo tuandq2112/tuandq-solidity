@@ -98,7 +98,7 @@ contract VestingShark is Ownable {
     }
 
     /**
-     * @dev kiểm tra xem đang đã thời gian của phase nào, và có thể claim được bao nhiêu coin
+     * @dev kiểm tra xem đã đủ thời gian của phase nào, và có thể claim được bao nhiêu coin
      *
      * @return tổng số token đã được unlock
     */
@@ -114,7 +114,9 @@ contract VestingShark is Ownable {
     }
 
     /**
-     * @dev nếu có token đã unlock owner transfer token về ví
+     * @dev nếu có token đã unlock, owner transfer token về ví
+     *
+     * admin phải chuyển đủ token erc 20 vào contract, nếu không hàm safeTransfer sẽ lỗi 
     */
     function claimToken(uint256 amount) public onlyOwner {
         uint256 amountUnlock = checkTokenCanClaim();
