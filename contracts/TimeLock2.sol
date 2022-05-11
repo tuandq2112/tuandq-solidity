@@ -134,10 +134,11 @@ contract TimeLock2 is Ownable, TimeLockInterface {
       "Input to adjust time and rate invalid"
     );
     _times = times;
+    while (_listTimeAndRate.length > 0) {
+      _listTimeAndRate.pop();
+    }
     for (uint256 i = 0; i < times; i++) {
       _listTimeAndRate.push(TimeAndRate(listTime[i], rates[i]));
-      _listTimeAndRate[i].rate = rates[i];
-      _listTimeAndRate[i].time = listTime[i];
     }
     emit SetTimeAndRate(times, rates, listTime);
   }
