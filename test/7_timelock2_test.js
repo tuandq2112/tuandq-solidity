@@ -13,35 +13,22 @@ contract("Timelock2", (accounts) => {
     owner = await ivi.owner();
   });
   describe("Prepare phase", async () => {
-    it("Add investor", async () => {
-      await timeLock.addInvestor(
-        investors,
-        investors.map((item) => {
-          return Math.floor(Math.random() * 10);
-        })
+    it("Set time and rate", async () => {
+      await timeLock.setTimesAndRate(
+        [20, 30, 50],
+        [60 * 60 * 24 * 365, 60 * 60 * 24 * 365 * 2, 60 * 60 * 24 * 365 * 3]
       );
+      let listTimeAndRate = await timeLock.getListTimeAndRate();
+      console.log("listTimeAndRate", listTimeAndRate);
     });
-    it("Add investor 2", async () => {
-      expectRevert.unspecified(
-        timeLock.addInvestor(
-          investors.slice(0, 9),
-          investors.map((item) => {
-            return Math.floor(Math.random() * 10);
-          })
-        )
+
+    it("Set time and rate 2", async () => {
+      await timeLock.setTimesAndRate(
+        [10, 20, 70],
+        [60 * 60 * 24 * 365, 60 * 60 * 24 * 365 * 3, 60 * 60 * 24 * 365 * 2]
       );
-    });
-    it("Add investor 3", async () => {
-      expectRevert.unspecified(
-        timeLock.addInvestor(
-          investors,
-          investors
-            .map((item) => {
-              return Math.floor(Math.random() * 10);
-            })
-            .slice(0, 9)
-        )
-      );
+      let listTimeAndRate = await timeLock.getListTimeAndRate();
+      console.log("listTimeAndRate", listTimeAndRate);
     });
   });
 });

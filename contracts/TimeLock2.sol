@@ -69,7 +69,7 @@ contract TimeLock2 is Ownable, TimeLockInterface {
   uint256 private _startTime;
 
   event AddInvestors(address[] _investorAddresses, uint256[] _amounts);
-  event SetTimeAndRate(uint256 _times, uint256[] _rate, uint256[] _timeLock);
+  event SetTimeAndRate(uint256[] _rate, uint256[] _timeLock);
 
   constructor(IERC20 token_) {
     _token = token_;
@@ -106,7 +106,6 @@ contract TimeLock2 is Ownable, TimeLockInterface {
   }
 
   function _validateTimeAndRate(
-    uint256 _newTimes,
     uint256[] memory _rates,
     uint256[] memory _listTime
   ) private pure returns (bool) {
@@ -116,31 +115,28 @@ contract TimeLock2 is Ownable, TimeLockInterface {
     for (uint256 i = 0; i < numberOfRate; i++) {
       totalRates += _rates[i];
     }
-    return
-      _newTimes == numberOfRate &&
-      numberOfRate > 0 &&
-      numberOfTime > 0 &&
-      numberOfRate == numberOfTime &&
-      totalRates == 100;
+    return numberOfRate == numberOfTime && totalRates == 100;
   }
 
-  function setTimesAndRate(
-    uint256 times,
-    uint256[] memory rates,
-    uint256[] memory listTime
-  ) public override onlyOwner inPreparePhase {
+  function setTimesAndRate(uint256[] memory rates, uint256[] memory listTime)
+    public
+    override
+    onlyOwner
+    inPreparePhase
+  {
     require(
-      _validateTimeAndRate(times, rates, listTime),
+      _validateTimeAndRate(rates, listTime),
       "Input to adjust time and rate invalid"
     );
-    _times = times;
+    uint256 numberOfTime = listTime.length;
+    _times = numberOfTime;
     while (_listTimeAndRate.length > 0) {
       _listTimeAndRate.pop();
     }
-    for (uint256 i = 0; i < times; i++) {
+    for (uint256 i = 0; i < numberOfTime; i++) {
       _listTimeAndRate.push(TimeAndRate(listTime[i], rates[i]));
     }
-    emit SetTimeAndRate(times, rates, listTime);
+    emit SetTimeAndRate(rates, listTime);
   }
 
   function _calculateTokens() private view returns (uint256) {
@@ -220,5 +216,9 @@ contract TimeLock2 is Ownable, TimeLockInterface {
     while (_listTimeAndRate.length > 0) {
       _listTimeAndRate.pop();
     }
+  }
+
+  function getListTimeAndRate() public view returns (TimeAndRate[] memory) {
+    return _listTimeAndRate;
   }
 }

@@ -18,11 +18,8 @@ interface TimeLockInterface {
   ) external;
 
   ///@dev set thời gian và tỷ lệ => times số lần claims, rates tỷ lệ claim mỗi lần tổng = 100%, listime thời gian tương ứng với từng lần claims(chú ý: times = rates.length = listime.length)
-  function setTimesAndRate(
-    uint256 times,
-    uint256[] memory rates,
-    uint256[] memory listTime
-  ) external;
+  function setTimesAndRate(uint256[] memory rates, uint256[] memory listTime)
+    external;
 
   ///@dev bắt đầu đếm thời gian từ prepare phase chuyển từ trạng thái prepare =>  release
   function start() external;

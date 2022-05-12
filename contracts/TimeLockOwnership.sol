@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./SafeMaths.sol";
 
 /**
  *@author Ivirse team
@@ -10,22 +11,22 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 
 contract TimeLockOwnership is Ownable {
-  using SafeMath for uint256;
+  using SafeMaths for uint256;
 
   struct TimeAndRatio {
     uint256 time;
     uint256 ratio;
   }
-
+  event ClaimToken(uint256 _amount, address _owner, uint256 _time);
   IERC20 private _token;
 
-///@notice list ratio and time
+  ///@notice list ratio and time
   TimeAndRatio[] private _listTimeAndRatio;
 
-///@notice total token can claim
+  ///@notice total token can claim
   uint256 private _totalToken;
 
-///@notice tokens received
+  ///@notice tokens received
   uint256 private _receivedToken = 0;
 
   constructor(
@@ -46,6 +47,7 @@ contract TimeLockOwnership is Ownable {
       _listTimeAndRatio.push(TimeAndRatio(countTime, listRatio_[i]));
     }
   }
+
   ///@notice require before constructor
   function _validateConstructor(
     address _tokenAddress,
@@ -64,17 +66,17 @@ contract TimeLockOwnership is Ownable {
       _tokenAddress != address(0);
   }
 
-  function percent(uint256 arg, uint256 rate) private pure returns (uint256) {
-    uint256 multiply = arg.mul(rate);
-    return multiply.div(100);
-  }
-  
+  // function percent(uint256 arg, uint256 rate) private pure returns (uint256) {
+  //   uint256 multiply = arg.mul(rate);
+  //   return multiply.div(100);
+  // }
+
   ///@notice get token over time
   function _getTokensCanClaim() private view returns (uint256) {
     uint256 totalTokenUnlock = 0;
     for (uint256 i = 0; i < _listTimeAndRatio.length; i++) {
       if (block.timestamp > _listTimeAndRatio[i].time) {
-        totalTokenUnlock += percent(_totalToken, _listTimeAndRatio[i].ratio);
+        totalTokenUnlock += _totalToken.percent(_listTimeAndRatio[i].ratio);
       }
     }
     totalTokenUnlock -= _receivedToken;
@@ -87,8 +89,8 @@ contract TimeLockOwnership is Ownable {
     require(tokenCanClaim >= amount, "Exceed total token");
     _receivedToken += amount;
     _token.transfer(owner(), amount);
+    emit ClaimToken(amount, owner(), block.timestamp);
   }
-  
 
   function getTimeAndRatio() public view returns (TimeAndRatio[] memory) {
     return _listTimeAndRatio;
@@ -97,5 +99,9 @@ contract TimeLockOwnership is Ownable {
   ///@notice public get token over time
   function getTokenCanClaim() public view returns (uint256) {
     return _getTokensCanClaim();
+  }
+
+  function getTotalToken() public view returns (uint256) {
+    return _totalToken;
   }
 }
