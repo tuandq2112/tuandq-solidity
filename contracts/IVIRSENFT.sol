@@ -146,7 +146,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
   }
 
   ///@dev thêm vào nft để bán
-  function _addItem(uint256 _tokenId) internal {
+  function _addToStore(uint256 _tokenId) internal {
     publicStore.push(_tokenId);
   }
 
@@ -154,7 +154,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
   function sellNft(uint256 tokenId, uint256 amount) public {
     require(msg.sender == _customOwners[tokenId], "Address is not owner");
     require(_inStore[tokenId], "Token had been sell");
-    _addItem(tokenId);
+    _addToStore(tokenId);
     _tokenIdToPrice[tokenId] = amount;
     _inStore[tokenId] = true;
 
