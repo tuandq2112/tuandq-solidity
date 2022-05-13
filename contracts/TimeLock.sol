@@ -3,223 +3,222 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./TimeLockInterface.sol";
 
 /**
  *@author Ivirse team
  *@title  Smart contract for. Users can get tokens after a period of time.
  */
 
-contract TokenTimelock is Ownable {
-  using SafeERC20 for IERC20;
+contract TimeLock is Ownable, TimeLockInterface {
+  ///@notice limited number of investors
+  uint256 public immutable LIMITED_NUMBER_OF_PARTICIPANTS = 800;
+
   using SafeMath for uint256;
 
-  ///@notice địa chỉ token erc20
-  IERC20 private _token;
+  using SafeERC20 for IERC20;
 
-  ///@notice mảng địa chỉ các investor
-  address[] public _investors;
+  enum STATUSENUM {
+    PREPARE,
+    RELEASE,
+    DELAY,
+    FINISHED
+  }
 
-  ///@notice từ địa chỉ investor -> số token họ sẽ được nhận
-  mapping(address => uint256) private _tokenForInvestor;
-
-  ///@notice tổng số token của tất cả các investor
-  uint256 public totalSupplyToken = 0;
-
-  ///@notice cấu trúc lưu thời gian khoá và tỉ lệ mỗi vòng vesting
-  struct timesAndRate {
-    uint256 timeLock;
+  struct TimeAndRate {
+    uint256 time;
     uint256 rate;
   }
 
-  ///@notice số lần vesting
-  uint256 public timesVesting;
+  modifier inPreparePhase() {
+    require(_status == STATUSENUM.PREPARE, "Not in prepare phase");
+    _;
+  }
 
-  ///@notice từ lần vesting -> thời gian khoá và tỉ lệ
-  mapping(uint256 => timesAndRate) private _timesAndRate;
+  modifier inReleasePhase() {
+    require(_status == STATUSENUM.RELEASE, "Not in release phase");
+    _;
+  }
 
-  ///@notice đếm thời gian chạy
-  uint256 private _timeStartVesting;
+  modifier inDelayTime() {
+    require(_status == STATUSENUM.DELAY, "Not in delay phase");
+    _;
+  }
 
-  ///@notice đếm số lần vesting
-  uint256 public countVesting = 0;
+  modifier inFinishPhase() {
+    require(_status == STATUSENUM.FINISHED, "Not in finish phase");
+    _;
+  }
 
-  ///@notice biến kiểm tra có đang trong vòng vesting
-  bool private _statusRelease = false;
+  ///@notice token used in this smart contract
+  IERC20 private _token;
 
-  /**
-  * @notice biến hiển thị trạng thái contract
-  '0': đang chuẩn bị dữ liệu 
-  '1': đang trong thời gian vesting
-  '2': đã kết thúc vesting
-   */
-  uint256 public statusContract = 0;
+  ///@notice the total amount that the user will receive
+  mapping(address => uint256) private _totalAmount;
 
-  constructor() {}
+  ///@notice list investor
+  address[] private _investors;
 
-  /**
-   * @dev thêm địa chỉ investor và lượng token của họ vào mảng
-   */
-  function setInvestorsAndAmounts(
-    IERC20 tokenAddr,
-    address[] memory investorsAddr,
+  STATUSENUM private _status;
+
+  uint256 private _times;
+  uint256 private _count = 0;
+
+  TimeAndRate[] private _listTimeAndRate;
+
+  uint256 private _startTime;
+
+  event AddInvestors(address[] _investorAddresses, uint256[] _amounts);
+  event SetTimeAndRate(uint256[] _rate, uint256[] _timeLock);
+
+  constructor(IERC20 token_) {
+    _token = token_;
+    _status = STATUSENUM.PREPARE;
+  }
+
+  ///@notice Prepare phase
+  function _validateInput(
+    address[] memory _investorAddresses,
+    uint256[] memory _amounts
+  ) private view returns (bool) {
+    uint256 numberOfInvestorAddress = _investorAddresses.length;
+    uint256 numberOfAmount = _amounts.length;
+    uint256 newNumber = _investors.length + numberOfInvestorAddress;
+    return
+      numberOfInvestorAddress > 0 &&
+      numberOfAmount > 0 &&
+      numberOfAmount == numberOfInvestorAddress &&
+      newNumber <= LIMITED_NUMBER_OF_PARTICIPANTS;
+  }
+
+  function addInvestor(
+    address[] memory investorAddresses,
     uint256[] memory amounts
-  ) public onlyOwner {
-    require(investorsAddr.length != 0, "investorsAddr.length >= 1");
-    require(investorsAddr.length == amounts.length, "must be the same length");
-    require(statusContract == 0 || statusContract == 2, "not time to set");
-
-    _token = tokenAddr;
-    statusContract = 0;
-
-    /**@notice
-     * gán số lượng token cho từng vestor (amounts)
-     * push investor vào danh sách      (_investors)
-     * tính tổng số lượng token          (totalSupplyToken)
-     */
-    for (uint256 i = 0; i < investorsAddr.length; i++) {
-      _tokenForInvestor[investorsAddr[i]] = amounts[i];
-      totalSupplyToken = totalSupplyToken + amounts[i];
-      _investors.push(investorsAddr[i]);
+  ) public override {
+    require(_validateInput(investorAddresses, amounts), "Input invalid");
+    for (uint64 i = 0; i < investorAddresses.length; i++) {
+      address newAddress = investorAddresses[i];
+      uint256 newAmount = amounts[i];
+      _investors.push(newAddress);
+      _totalAmount[newAddress] = newAmount;
     }
+    emit AddInvestors(investorAddresses, amounts);
   }
 
-  /**
-   * @dev thêm số lần vesting kèm thời gian và tỉ lệ mỗi vòng
-   */
-  function setTimesAndRate(
-    uint256 times,
-    uint256[] memory rate,
-    uint256[] memory timeLock
-  ) public onlyOwner {
-    require(times != 0, "times >= 1");
-    require(times == rate.length, "must be equal");
-    require(times == timeLock.length, "must be equal");
-    require(statusContract == 0 || statusContract == 2, "not time to set");
-
-    timesVesting = times;
-
-    ///@notice kiểm tra xem tổng rate có bằng 100%
-    uint256 checkSumRate = 0;
-
-    /**
-     * @notice
-     * tính toán tổng rate
-     * gán tỉ lệ với từng vòng
-     * gán thời gian khoá với từng vòng
-     */
-    for (uint256 i = 0; i < times; i++) {
-      checkSumRate = checkSumRate + rate[i];
-      _timesAndRate[i].rate = rate[i];
-      _timesAndRate[i].timeLock = timeLock[i];
+  function _validateTimeAndRate(
+    uint256[] memory _rates,
+    uint256[] memory _listTime
+  ) private pure returns (bool) {
+    uint256 numberOfRate = _rates.length;
+    uint256 numberOfTime = _listTime.length;
+    uint256 totalRates = 0;
+    for (uint256 i = 0; i < numberOfRate; i++) {
+      totalRates += _rates[i];
     }
-
-    require(checkSumRate == 100, "checkSumRate equal to 100%");
+    return numberOfRate == numberOfTime && totalRates == 100;
   }
 
-  /**
-   * @dev bắt đầu đếm thời gian vòng vesting hiện tại, bắt đầu từ vòng 0
-   *
-   *
-   * @notice trước khi goi hàm startRelease() ở lần đầu, balanceOf(address(this)) >= totalSupplyToken
-   *
-   */
-  function startRelease() public onlyOwner {
-    if (countVesting == 0) {
-      uint256 balanceContract = _token.balanceOf(address(this));
-      require(
-        balanceContract >= totalSupplyToken,
-        "not enough tokens to start release"
-      );
+  function setTimesAndRate(uint256[] memory rates, uint256[] memory listTime)
+    public
+    override
+    onlyOwner
+    inPreparePhase
+  {
+    require(
+      _validateTimeAndRate(rates, listTime),
+      "Input to adjust time and rate invalid"
+    );
+    uint256 numberOfTime = listTime.length;
+    _times = numberOfTime;
+    while (_listTimeAndRate.length > 0) {
+      _listTimeAndRate.pop();
     }
-    require(countVesting < timesVesting, "too many times vesting");
-    require(_statusRelease == false, "not start time");
-
-    _timeStartVesting = _timesAndRate[countVesting].timeLock + block.timestamp;
-    _statusRelease = true;
-    statusContract = 1;
+    for (uint256 i = 0; i < numberOfTime; i++) {
+      _listTimeAndRate.push(TimeAndRate(listTime[i], rates[i]));
+    }
+    emit SetTimeAndRate(rates, listTime);
   }
 
-  /**
-   * @dev hàm tính tỉ lệ phần trăm
-   */
-  function percent(uint256 arg, uint256 rate) private pure returns (uint256) {
-    uint256 multiply = arg.mul(rate);
-    return multiply.div(100);
-  }
-
-  /**
-   * @dev approve token cho vestor theo ti le vesting
-   */
-  function release() public onlyOwner {
-    require(block.timestamp >= _timeStartVesting, "not time release");
-    require(_statusRelease == true, "time error");
-
-    /**
-     @notice tính toán tỉ lệ token approve và approve cho vestor
-     */
+  function _calculateTokens() private view returns (uint256) {
+    uint256 total;
     for (uint256 i = 0; i < _investors.length; i++) {
-      uint256 amountSend = percent(
-        _tokenForInvestor[_investors[i]],
-        _timesAndRate[countVesting].rate
-      );
-
-      /**
-      @notice không dùng safeApprove do không cộng dồn các token đã approve trước đó
-       */
-      _token.safeIncreaseAllowance(_investors[i], amountSend);
+      total += _totalAmount[_investors[i]];
     }
-    countVesting++;
-    _statusRelease = false;
+    return total;
   }
 
-  /**
-   * @dev reset các biến của contract về khởi nguyên
-   */
-  function resetData() public onlyOwner {
-    require(countVesting >= timesVesting, "not time to reset data");
-    delete _investors;
-    timesVesting = 0;
-    statusContract = 2;
-    countVesting = 0;
-    totalSupplyToken = 0;
+  function start() public override onlyOwner inPreparePhase {
+    require(
+      _calculateTokens() <= _token.balanceOf(address(this)),
+      "Not enough tokens"
+    );
+    _startTime = block.timestamp;
+    _status = STATUSENUM.RELEASE;
   }
 
-  /**
-   * @dev approve token cho owner
-   *
-   * @notice chú ý khi dùng hàm này do có TRƯỜNG HỢP investor chưa transferFrom 
-      token được approve về mà owner đã rút hết tiền của contract ra 
-      sẽ gây lỗi "investor đã được approve nhưng ko rút được token về"
-   */
-  function withdrawCoin() public onlyOwner returns (uint256) {
-    uint256 amount = _token.balanceOf(address(this));
-    require(amount != 0, "not have token");
-    _token.safeApprove(owner(), amount);
-    return amount;
+  ///@notice Delay phase
+
+  function reStart() public override onlyOwner inDelayTime {
+    _startTime = block.timestamp;
+    _status = STATUSENUM.RELEASE;
   }
 
-  /**
-   * @dev kiem tra thoi diem realease
-   *
-   *
-   * @notice nếu không trong thời gian release -> false
-   * @notice nếu trong thời gian release, kiểm tra block.timestamp để biết true/false
-   */
-  function checkTimeRelease() public view returns (bool) {
-    if (_statusRelease == false) {
-      return false;
-    } else if (block.timestamp >= _timeStartVesting) {
-      return true;
+  ///@notice Release phase
+
+  function _getNextRelaseTime() private view returns (uint256) {
+    return _startTime + _listTimeAndRate[_count].time;
+  }
+
+  function _getCurrentRate() private view returns (uint256) {
+    return _listTimeAndRate[_count].rate;
+  }
+
+  function release() public override onlyOwner inReleasePhase {
+    require(
+      block.timestamp > _getNextRelaseTime(),
+      "It's not time release yet"
+    );
+    uint256 currentRating = _getCurrentRate();
+    for (uint256 i = 0; i < _investors.length; i++) {
+      address investorAddress = _investors[i];
+      uint256 totalAmount = _totalAmount[investorAddress];
+      uint256 amountApprove = totalAmount.mul(currentRating).div(100);
+      _token.safeIncreaseAllowance(investorAddress, amountApprove);
+    }
+    _count++;
+
+    if (_count == _times) {
+      _status = STATUSENUM.FINISHED;
+    } else {
+      _status = STATUSENUM.DELAY;
+    }
+  }
+
+  function getInvestors() public view returns (address[] memory) {
+    return _investors;
+  }
+
+  ///@notice Finish phase
+  function getExcessTokens() public onlyOwner inFinishPhase {
+    uint256 totalExcessTokens = _token.balanceOf(address(this));
+    _token.transfer(owner(), totalExcessTokens);
+  }
+
+  function reset() public override onlyOwner inFinishPhase {
+    _count = 0;
+    _status = STATUSENUM.PREPARE;
+    _times = 0;
+    _startTime = 0;
+    while (_investors.length > 0) {
+      _investors.pop();
     }
 
-    return false;
+    while (_listTimeAndRate.length > 0) {
+      _listTimeAndRate.pop();
+    }
   }
 
-  /**
-   @dev tra ve dia chi token erc20
-   */
-  function token() public view returns (IERC20) {
-    return _token;
+  function getListTimeAndRate() public view returns (TimeAndRate[] memory) {
+    return _listTimeAndRate;
   }
-  
 }
