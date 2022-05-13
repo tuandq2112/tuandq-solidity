@@ -66,10 +66,6 @@ contract TimeLockOwnership is Ownable {
       _tokenAddress != address(0);
   }
 
-  // function percent(uint256 arg, uint256 rate) private pure returns (uint256) {
-  //   uint256 multiply = arg.mul(rate);
-  //   return multiply.div(100);
-  // }
 
   ///@notice get token over time
   function _getTokensCanClaim() private view returns (uint256) {
