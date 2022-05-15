@@ -16,6 +16,7 @@ contract TimeLockWithAmount is Ownable {
     uint256 time;
     uint256 amount;
   }
+  uint256 private FRACTIONS = 10**uint256(18);
 
   function _addToList(
     TimeAndAmount[] storage listTimeAndAmount,
@@ -29,7 +30,9 @@ contract TimeLockWithAmount is Ownable {
     uint256 countTime = block.timestamp;
     for (uint256 i = 0; i < listTime.length; i++) {
       countTime += listTime[0];
-      listTimeAndAmount.push(TimeAndAmount(countTime, listAmount[i]));
+      listTimeAndAmount.push(
+        TimeAndAmount(countTime, listAmount[i] * FRACTIONS)
+      );
     }
   }
 
