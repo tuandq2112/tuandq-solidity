@@ -217,4 +217,18 @@ contract TimeLockWithAmount is Ownable {
   function getPrivateTokenCanClaim() public view returns (uint256) {
     return _getPrivateTokensUnlocked() - _receivedPrivateToken;
   }
+
+  /**
+   * @dev Total public token user can claims.
+   */
+  function getPublicTokenClaimed() public view returns (uint256) {
+    return _receivedPublicToken;
+  }
+
+  /**
+   * @dev Total private token user can claims.
+   */
+  function getPrivateTokenClaimed() public view returns (uint256) {
+    return _receivedPrivateToken;
+  }
 }
