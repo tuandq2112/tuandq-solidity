@@ -22,9 +22,9 @@ contract CloneTimeLockWithAmount is Ownable {
 
   IERC20 private _token;
 
-  DataByTime[] private _listPublicTimeAndAmount;
+  DataByTime[] private _listPublicData;
 
-  DataByTime[] private _listPrivateTimeAndAmount;
+  DataByTime[] private _listPrivateData;
 
   uint256 private _receivedPublicToken = 0;
 
@@ -63,12 +63,12 @@ contract CloneTimeLockWithAmount is Ownable {
     );
     _token = IERC20(tokenAddress_);
     _initTimeAndRatio(
-      _listPublicTimeAndAmount,
+      _listPublicData,
       listPublicTime_,
       listPublicAmount_
     );
     _initTimeAndRatio(
-      _listPrivateTimeAndAmount,
+      _listPrivateData,
       listPrivateTime_,
       listPrivateAmount_
     );
@@ -98,7 +98,7 @@ contract CloneTimeLockWithAmount is Ownable {
    */
 
   function _initTimeAndRatio(
-    DataByTime[] storage _listTimeAndAmount,
+    DataByTime[] storage _listData,
     uint256[] memory _listTime,
     uint256[] memory _listAmount
   ) private {
@@ -109,7 +109,7 @@ contract CloneTimeLockWithAmount is Ownable {
     uint256 countTime = block.timestamp;
     for (uint256 i = 0; i < _listTime.length; i++) {
       countTime += _listTime[0];
-      _listTimeAndAmount.push(
+      _listData.push(
         DataByTime(countTime, _listAmount[i] * FRACTIONS, false)
       );
     }
@@ -119,14 +119,14 @@ contract CloneTimeLockWithAmount is Ownable {
    * @dev Get all element have time < now and count all amount of this .
    */
   function _releaseAllToken(
-    DataByTime[] storage _listTimeAndAmount,
+    DataByTime[] storage _listData,
     uint256 _receivedToken,
     bool isPublic
   ) private {
     uint256 totalToken = 0;
     uint256 currentTime = block.timestamp;
-    for (uint256 i = 0; i < _listTimeAndAmount.length; i++) {
-      DataByTime storage data = _listTimeAndAmount[i];
+    for (uint256 i = 0; i < _listData.length; i++) {
+      DataByTime storage data = _listData[i];
       if (data.time <= currentTime) {
         if (!data.isClaimed) {
           totalToken += data.amount;
@@ -136,6 +136,7 @@ contract CloneTimeLockWithAmount is Ownable {
         break;
       }
     }
+    require(totalToken > 0, "User claimed all token, can not claim more");
     _receivedToken += totalToken;
     _token.transfer(owner(), totalToken);
     if (isPublic) {
@@ -169,11 +170,11 @@ contract CloneTimeLockWithAmount is Ownable {
   }
 
   function releasePublicTokenByIndex(uint256 index) public onlyOwner {
-    _handleClaimToken(_listPublicTimeAndAmount[index], true);
+    _handleClaimToken(_listPublicData[index], true);
   }
 
   function releasePrivateTokenByIndex(uint256 index) public onlyOwner {
-    _handleClaimToken(_listPrivateTimeAndAmount[index], false);
+    _handleClaimToken(_listPrivateData[index], false);
   }
 
   /**
@@ -183,7 +184,7 @@ contract CloneTimeLockWithAmount is Ownable {
    * - Amount less than or equal token unlocked minus token user received
    */
   function releaseAllPublicToken() public onlyOwner {
-    _releaseAllToken(_listPublicTimeAndAmount, _receivedPublicToken, true);
+    _releaseAllToken(_listPublicData, _receivedPublicToken, true);
   }
 
   /**
@@ -193,20 +194,20 @@ contract CloneTimeLockWithAmount is Ownable {
    * - Amount less than or equal token unlocked minus token user received
    */
   function releaseAllPrivateToken() public onlyOwner {
-    _releaseAllToken(_listPrivateTimeAndAmount, _receivedPrivateToken, false);
+    _releaseAllToken(_listPrivateData, _receivedPrivateToken, false);
   }
 
   /**
    * @dev Get milestone and amount of private release.
    */
-  function getPublicTimeAndAmount() public view returns (DataByTime[] memory) {
-    return _listPublicTimeAndAmount;
+  function getPublicData() public view returns (DataByTime[] memory) {
+    return _listPublicData;
   }
 
   /**
    * @dev Get milestone and amount of public release.
    */
-  function getPrivateTimeAndAmount() public view returns (DataByTime[] memory) {
-    return _listPrivateTimeAndAmount;
+  function getPrivateData() public view returns (DataByTime[] memory) {
+    return _listPrivateData;
   }
 }

@@ -1,9 +1,9 @@
-const TokenTimelock = artifacts.require("TokenTimelock");
+const TimeLock = artifacts.require("TimeLock");
 
 const IVIRSE = artifacts.require("IVIRSE");
 
 module.exports = function (deployer) {
   deployer.deploy(IVIRSE).then(() => {
-    return deployer.deploy(TokenTimelock);
+    return deployer.deploy(TimeLock);
   });
 };
