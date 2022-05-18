@@ -153,16 +153,18 @@ contract CloneTimeLockWithAmount is Ownable {
    */
   function _handleClaimToken(DataByTime storage data, bool isPublic) private {
     require(!data.isClaimed, "User claimed token");
+    uint256 currentTime = block.timestamp;
+    require(data.time <= currentTime, "It's not time release yet");
     data.isClaimed = true;
     uint256 amount = data.amount;
     _token.transfer(owner(), amount);
     if (isPublic) {
       _receivedPublicToken += amount;
 
-      emit ClaimPublicToken(amount, owner(), block.timestamp);
+      emit ClaimPublicToken(amount, owner(), currentTime);
     } else {
       _receivedPrivateToken += amount;
-      emit ClaimPrivateToken(amount, owner(), block.timestamp);
+      emit ClaimPrivateToken(amount, owner(), currentTime);
     }
   }
 
