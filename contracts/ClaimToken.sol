@@ -40,12 +40,10 @@ contract ClaimToken is Ownable {
       "Parameters invalid"
     );
     _token = IERC20(tokenAddress_);
-    uint256 currentTime = block.timestamp;
     for (uint256 i = 0; i < listTime_.length; i++) {
-      currentTime += listTime_[i];
       _listData.push(
         DataByTime(
-          currentTime,
+          listTime_[i],
           listPublicAmount_[i] * FRACTIONS,
           listPrivateAmount_[i] * FRACTIONS,
           false
