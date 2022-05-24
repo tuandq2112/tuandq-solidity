@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /**
  *@author tuandq
@@ -14,6 +15,26 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
   ///@notice tự tăng id theo biến này
   using Counters for Counters.Counter;
   Counters.Counter private _tokenIdCounter;
+  using SafeMath for uint256;
+
+  enum RANKING {
+    S,
+    A,
+    B,
+    C,
+    D
+  }
+  struct Pokemon {
+    RANKING rank;
+    uint256 attack;
+    uint256 def;
+    uint256 hp;
+    string uri;
+    bool isCreep;
+  }
+  Pokemon[] private _creeps;
+  mapping(uint256 => Pokemon) private _pokemons;
+  mapping(address => uint256) private _defenders;
 
   ///@notice từ tokenId -> địa chỉ người sở hữu
   mapping(uint256 => address) private _customOwners;
@@ -48,6 +69,14 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
 
   ///@notice Check tokenId trong store hay không
   mapping(uint256 => bool) private _inStore;
+
+  mapping(address => uint256) private _coolDownGetCreep;
+
+  mapping(address => uint256) private _coolDownAttack;
+
+  mapping(address => bool) private _isRegister;
+
+  mapping(address => Pokemon) private _addressToCreep;
 
   ///@notice list lưu lại các minter
   address[] private minterList;
@@ -112,14 +141,62 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
 
   ///@notice tự tăng id khi mint, set quyền sở hữu của nft cho người mint.
   ///@dev uri là 1 đường dẫn ảnh hoặc 1 url get trả về dữ liệu của nft
-  function safeMint(address to, string memory uri) public onlyMinter {
+  function safeMint(
+    address to,
+    string memory uri,
+    uint256 attack,
+    uint256 defense
+  ) public onlyMinter {
+    _safeMint(to, uri, attack, defense, 0, false);
+  }
+
+  function addCreep(
+    uint256 attack,
+    uint256 defense,
+    uint256 hp,
+    string memory uri
+  ) public onlyOwner {
+    RANKING rank = _getRanking(attack, defense);
+    _creeps.push(Pokemon(rank, attack, defense, hp, uri, true));
+  }
+
+  ///@notice tự tăng id khi mint, set quyền sở hữu của nft cho người mint.
+  ///@dev uri là 1 đường dẫn ảnh hoặc 1 url get trả về dữ liệu của nft
+  function _safeMint(
+    address _to,
+    string memory _uri,
+    uint256 _attack,
+    uint256 _defense,
+    uint256 _hp,
+    bool _isCreep
+  ) private {
     uint256 tokenId = _tokenIdCounter.current();
     _tokenIdCounter.increment();
-    _safeMint(to, tokenId);
-    _setTokenURI(tokenId, uri);
-    _customOwners[tokenId] = to;
-    _addItem(tokenId, to);
+    _safeMint(_to, tokenId);
+    _setTokenURI(tokenId, _uri);
+    _customOwners[tokenId] = _to;
+    _addItem(tokenId, _to);
     _inStore[tokenId] = false;
+    RANKING rank = _getRanking(_attack, _defense);
+    _pokemons[tokenId] = Pokemon(rank, _attack, _defense, _hp, "", _isCreep);
+  }
+
+  function _getRanking(uint256 _attack, uint256 _defense)
+    private
+    pure
+    returns (RANKING)
+  {
+    uint256 totalPoint = _attack + _defense;
+    if (totalPoint >= 8000) {
+      return RANKING.S;
+    } else if (totalPoint >= 6000 && totalPoint < 8000) {
+      return RANKING.A;
+    } else if (totalPoint >= 4000 && totalPoint < 6000) {
+      return RANKING.B;
+    } else if (totalPoint >= 2000 && totalPoint < 4000) {
+      return RANKING.C;
+    }
+    return RANKING.D;
   }
 
   function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
@@ -207,6 +284,66 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
         break;
       }
     }
+  }
+
+  function setDefender(uint256 tokenId) public {
+    require(_customOwners[tokenId] == msg.sender, "Sender must be the owner");
+    _defenders[msg.sender] = tokenId;
+  }
+
+  function attackCreep(uint256 tokenId) public {
+    // require(_defenders[enemy] > 0, "Your enemy doesn't have a defender yet!");
+    require(_customOwners[tokenId] == msg.sender, "Sender must be the owner");
+    Pokemon storage creep = _addressToCreep[msg.sender];
+    Pokemon memory pokemon = _pokemons[tokenId];
+    require(creep.hp > 0, "Monster deaded");
+    if (creep.hp >= pokemon.attack) {
+      creep.hp = creep.hp.sub(pokemon.attack);
+    } else {
+      creep.hp = 0;
+    }
+  }
+
+  function getPokemon(uint256 tokenId) public view returns (Pokemon memory) {
+    return _pokemons[tokenId];
+  }
+
+  function getCreep() public view returns (Pokemon memory) {
+    return _addressToCreep[msg.sender];
+  }
+
+  function getRandomCreep() public {
+    require(
+      block.timestamp >= _coolDownGetCreep[msg.sender],
+      "It's not time to shoot yet"
+    );
+
+    require(
+      _addressToCreep[msg.sender].hp == 0,
+      "the player needs to destroy the current monster"
+    );
+    uint256 modulo = _creeps.length - 1;
+    _addressToCreep[msg.sender] = _creeps[
+      modulo == 0 ? 0 : getRandomUint(modulo)
+    ];
+  }
+
+  function register(string memory uri) public {
+    address to = msg.sender;
+    require(!_isRegister[to], "Sender was register");
+    uint256 randomAtk = getRandomUint(1000);
+    uint256 randomDef = getRandomUint(1000);
+    _isRegister[to] = true;
+    _coolDownGetCreep[to] = block.timestamp;
+    _coolDownAttack[to] = block.timestamp;
+    _isRegister[to] = true;
+    _safeMint(to, uri, randomAtk, randomDef, 0, false);
+  }
+
+  function getRandomUint(uint256 modulo) public view returns (uint256) {
+    return
+      uint256(keccak256(abi.encodePacked(block.timestamp + block.difficulty))) %
+      modulo;
   }
 
   ///@notice thêm token vào list khi truy suất theo điaj chỉa của mapping nfts
