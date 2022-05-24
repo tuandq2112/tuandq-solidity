@@ -37,7 +37,7 @@ module.exports = async function (deployer) {
               BigInt(allToken * Math.pow(10, 18))
             );
             await claimSmc.transferOwnership(newOwner);
-            successArr.push(item);
+            successArr.push({ ...item, contractAddress: res.address });
           })
           .catch((err) => {
             console.log(err);
@@ -47,5 +47,8 @@ module.exports = async function (deployer) {
     })
     .catch((err) => {
       console.log(err);
+    })
+    .finally(() => {
+      console.log("Result: ", successArr);
     });
 };
