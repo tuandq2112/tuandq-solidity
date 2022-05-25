@@ -40,6 +40,11 @@ contract TuanToken is ERC20, ERC20Burnable, Pausable, AccessControl {
     public
     onlyRole(DEFAULT_ADMIN_ROLE)
   {
+    uint256 totalSupply = totalSupply();
+    require(
+      totalSupply + amount <= _maxSupply,
+      "ERC20: mint amount exceeds max supply"
+    );
     _mint(to, amount);
   }
 
@@ -52,6 +57,7 @@ contract TuanToken is ERC20, ERC20Burnable, Pausable, AccessControl {
     super._beforeTokenTransfer(from, to, amount);
   }
 
+  ///@dev check account in _minters
   function _inMinters(address _account) private view returns (bool) {
     for (uint256 i = 0; i < _minters.length; i++) {
       address minter = _minters[i];

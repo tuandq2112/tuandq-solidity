@@ -9,9 +9,10 @@ const {
 
 const decimals = Math.pow(10, 18);
 contract("TuanToken", (accounts) => {
-  let token;
+  let token, MINTER_ROLE;
   before("Init smart contract", async () => {
     token = await TuanToken.deployed();
+    MINTER_ROLE = await token.MINTER_ROLE();
   });
   describe("Check role", () => {
     it("Mint if admin", async () => {
@@ -49,7 +50,6 @@ contract("TuanToken", (accounts) => {
       let admin = accounts[1];
       let user = accounts[2];
       let amount = BigInt(decimals * 100);
-      let MINTER_ROLE = await token.MINTER_ROLE();
       await expectRevert.outOfGas(
         token.grantRole(MINTER_ROLE, user, { from: user }),
         "Missing role"
@@ -64,20 +64,39 @@ contract("TuanToken", (accounts) => {
       let balanceOfMinter = await token.balanceOf(user);
       assert.equal(balanceOfMinter, amount);
     });
-    it("Revoke role", async () => {
+    it("Revoke role and renounce role", async () => {
       let admin = accounts[1];
       let user = accounts[2];
-      let MINTER_ROLE = await token.MINTER_ROLE();
       await token.grantRole(MINTER_ROLE, user, { from: admin });
       await token.revokeRole(MINTER_ROLE, user, { from: admin });
-      let minters = await token.getMinters();
-      let hasRole = await token.hasRole(MINTER_ROLE, user);
-      console.log(minters, hasRole);
+      await token.grantRole(MINTER_ROLE, user, { from: admin });
+      await token.renounceRole(MINTER_ROLE, user, { from: user });
     });
-    // it("Add minters", async () => {
-    //   let admin = accounts[0];
-    //   let users = accounts.slice(3, 10);
-    //   Promise.all(users.map(item=>token.))
-    // });
+    it("Test mint consensus", async () => {
+      let admin = accounts[0];
+      let users = accounts.slice(3, 10);
+      let amount = BigInt(decimals * 200);
+      await Promise.all(
+        users.map((item) => token.grantRole(MINTER_ROLE, item, { from: admin }))
+      );
+      await Promise.all(
+        users.map((item) => token.minterConsensus({ from: item }))
+      );
+      await expectRevert.unspecified(
+        token.mintConsensus(admin, amount),
+        "Only minter can mint when all minter accept"
+      );
+      let minters = await token.getMinters();
+      await token.mintConsensus(users[0], amount, { from: users[0] });
+    });
+    it("Total supply test", async () => {
+      let admin = accounts[0];
+      let maxSupply = BigInt(888888888 * decimals);
+      let totalSupply = await token.totalSupply();
+      console.log(totalSupply.toString());
+      await token.mint(admin, BigInt(maxSupply) - BigInt(totalSupply));
+      let balanceOfAdmin = await token.balanceOf(admin);
+      console.log(balanceOfAdmin.toString());
+    });
   });
 });
