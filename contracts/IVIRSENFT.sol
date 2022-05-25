@@ -286,65 +286,65 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     }
   }
 
-  function setDefender(uint256 tokenId) public {
-    require(_customOwners[tokenId] == msg.sender, "Sender must be the owner");
-    _defenders[msg.sender] = tokenId;
-  }
+  // function setDefender(uint256 tokenId) public {
+  //   require(_customOwners[tokenId] == msg.sender, "Sender must be the owner");
+  //   _defenders[msg.sender] = tokenId;
+  // }
 
-  function attackCreep(uint256 tokenId) public {
-    // require(_defenders[enemy] > 0, "Your enemy doesn't have a defender yet!");
-    require(_customOwners[tokenId] == msg.sender, "Sender must be the owner");
-    Pokemon storage creep = _addressToCreep[msg.sender];
-    Pokemon memory pokemon = _pokemons[tokenId];
-    require(creep.hp > 0, "Monster deaded");
-    if (creep.hp >= pokemon.attack) {
-      creep.hp = creep.hp.sub(pokemon.attack);
-    } else {
-      creep.hp = 0;
-    }
-  }
+  // function attackCreep(uint256 tokenId) public {
+  //   // require(_defenders[enemy] > 0, "Your enemy doesn't have a defender yet!");
+  //   require(_customOwners[tokenId] == msg.sender, "Sender must be the owner");
+  //   Pokemon storage creep = _addressToCreep[msg.sender];
+  //   Pokemon memory pokemon = _pokemons[tokenId];
+  //   require(creep.hp > 0, "Monster deaded");
+  //   if (creep.hp >= pokemon.attack) {
+  //     creep.hp = creep.hp.sub(pokemon.attack);
+  //   } else {
+  //     creep.hp = 0;
+  //   }
+  // }
 
-  function getPokemon(uint256 tokenId) public view returns (Pokemon memory) {
-    return _pokemons[tokenId];
-  }
+  // function getPokemon(uint256 tokenId) public view returns (Pokemon memory) {
+  //   return _pokemons[tokenId];
+  // }
 
-  function getCreep() public view returns (Pokemon memory) {
-    return _addressToCreep[msg.sender];
-  }
+  // function getCreep() public view returns (Pokemon memory) {
+  //   return _addressToCreep[msg.sender];
+  // }
 
-  function getRandomCreep() public {
-    require(
-      block.timestamp >= _coolDownGetCreep[msg.sender],
-      "It's not time to shoot yet"
-    );
+  // function getRandomCreep() public {
+  //   require(
+  //     block.timestamp >= _coolDownGetCreep[msg.sender],
+  //     "It's not time to shoot yet"
+  //   );
 
-    require(
-      _addressToCreep[msg.sender].hp == 0,
-      "the player needs to destroy the current monster"
-    );
-    uint256 modulo = _creeps.length - 1;
-    _addressToCreep[msg.sender] = _creeps[
-      modulo == 0 ? 0 : getRandomUint(modulo)
-    ];
-  }
+  //   require(
+  //     _addressToCreep[msg.sender].hp == 0,
+  //     "the player needs to destroy the current monster"
+  //   );
+  //   uint256 modulo = _creeps.length - 1;
+  //   _addressToCreep[msg.sender] = _creeps[
+  //     modulo == 0 ? 0 : getRandomUint(modulo)
+  //   ];
+  // }
 
-  function register(string memory uri) public {
-    address to = msg.sender;
-    require(!_isRegister[to], "Sender was register");
-    uint256 randomAtk = getRandomUint(1000);
-    uint256 randomDef = getRandomUint(1000);
-    _isRegister[to] = true;
-    _coolDownGetCreep[to] = block.timestamp;
-    _coolDownAttack[to] = block.timestamp;
-    _isRegister[to] = true;
-    _safeMint(to, uri, randomAtk, randomDef, 0, false);
-  }
+  // function register(string memory uri) public {
+  //   address to = msg.sender;
+  //   require(!_isRegister[to], "Sender was register");
+  //   uint256 randomAtk = getRandomUint(1000);
+  //   uint256 randomDef = getRandomUint(1000);
+  //   _isRegister[to] = true;
+  //   _coolDownGetCreep[to] = block.timestamp;
+  //   _coolDownAttack[to] = block.timestamp;
+  //   _isRegister[to] = true;
+  //   _safeMint(to, uri, randomAtk, randomDef, 0, false);
+  // }
 
-  function getRandomUint(uint256 modulo) public view returns (uint256) {
-    return
-      uint256(keccak256(abi.encodePacked(block.timestamp + block.difficulty))) %
-      modulo;
-  }
+  // function getRandomUint(uint256 modulo) public view returns (uint256) {
+  //   return
+  //     uint256(keccak256(abi.encodePacked(block.timestamp + block.difficulty))) %
+  //     modulo;
+  // }
 
   ///@notice thêm token vào list khi truy suất theo điaj chỉa của mapping nfts
   function _addItem(uint256 _tokenId, address _address) internal {

@@ -3,3 +3,12 @@ ganache-cli --accounts=100
 cant' compare 2 bignumber
 
 truffle migrate -f 1 --to 1 --network bsc
+
+// const IVIRSENFT = artifacts.require("IVIRSENFT");
+// const IVIRSE = artifacts.require("IVIRSE");
+
+// module.exports = async function (deployer) {
+//   deployer.deploy(IVIRSE).then(() => {
+//     return deployer.deploy(IVIRSENFT, IVIRSE.address);
+//   });
+// };
