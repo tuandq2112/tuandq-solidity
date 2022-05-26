@@ -9,7 +9,7 @@ module.exports = async function (deployer) {
   let coinAddress = "0xD205C35e8667E2b63eb43388f154bfc22f48Abe1";
   let successArr = [];
   let errorArr = [];
-  await readXlsxFile("/home/tuandoquoc/Desktop/import.xlsx")
+  await readXlsxFile("C:\\Users\\Admin\\Desktop\\import.xlsx")
     .then(async (rows) => {
       let data = rows.filter((item) => item.every((str) => str != null));
       for (let i = 0; i < data.length; i++) {
@@ -50,5 +50,9 @@ module.exports = async function (deployer) {
     })
     .finally(() => {
       console.log("Result: ", successArr);
+      console.log(
+        "List addresses",
+        successArr.map((item) => item.contractAddress).join(",")
+      );
     });
 };
