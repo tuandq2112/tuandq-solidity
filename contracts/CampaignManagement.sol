@@ -3,6 +3,12 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+/**
+ *@author tuan.dq
+ *@title Smart contract for campaigns
+ */
 
 contract CampaignManagement is Pausable {
   /**
@@ -10,12 +16,17 @@ contract CampaignManagement is Pausable {
    */
   using SafeMath for uint256;
 
+  /**
+   *@dev Using safe math library for uin256
+   */
+  using SafeERC20 for IERC20;
+
   /***
     @dev ERC20 token for this smart contract
    */
   IERC20 private _token;
   /***
-    @dev Variables and events for admin
+    @notice Variables and events for admin
    */
 
   /***
@@ -53,27 +64,50 @@ contract CampaignManagement is Pausable {
   mapping(address => bool) public adminConsent;
 
   /***
+    @notice Variables and events for management campaign.
+   */
+
+  /***
+    @dev  Emitted when `ADMIN` create campaign.
+   */
+  event CreateCampaign(
+    string campaignName,
+    address[] accounts,
+    uint256[] amounts
+  );
+
+  /***
+    @dev  Emitted when `ADMIN` release token.
+   */
+  event Release(string campaignName);
+  /***
     @dev struct for a participant.
    */
   struct Participant {
     address account;
     uint256 amount;
+    bool passive;
   }
-
-  /***
-    @dev Mapping from campaign to participants.
-   */
-  mapping(string => Participant[]) private _participants;
 
   /***
     @dev array save all campaign name.
    */
-  string[] private _campaigns;
+  string[] public campaigns;
+
+  /***
+    @dev Mapping from campaign to participants.
+   */
+  mapping(string => Participant[]) private participants;
+
+  /***
+    @dev Mapping from address to participant or not.
+   */
+  mapping(address => bool) public isParticipant;
 
   /***
     @dev mapping from campaign to claimed.
    */
-  mapping(string => bool) private _isClaimed;
+  mapping(string => bool) public isClaimed;
 
   /***
     @dev Set address token. Deployer is a admin.
@@ -176,6 +210,69 @@ contract CampaignManagement is Pausable {
   }
 
   /**
+   *@dev Create campaign
+   */
+  function createCampaign(
+    string memory campaignName,
+    address[] memory accounts,
+    uint256[] memory amounts,
+    bool[] memory listPassive
+  ) public onlyAdmin whenNotPaused {
+    _createCampaign(campaignName, accounts, amounts, listPassive);
+  }
+
+  /**
+   *@dev Create campaign
+   */
+  function release(string memory campaignName) public onlyAdmin whenNotPaused {
+    require(!isClaimed[campaignName], "Campaign ended!");
+    Participant[] memory listParticipant = participants[campaignName];
+    for (uint256 i = 0; i < listParticipant.length; i++) {
+      Participant memory participant = listParticipant[i];
+      if (participant.passive) {
+        _token.safeTransfer(participant.account, participant.amount);
+      } else {
+        _token.safeIncreaseAllowance(participant.account, participant.amount);
+      }
+    }
+    isClaimed[campaignName] = true;
+    emit Release(campaignName);
+  }
+
+  /**
+   *@dev
+   * Validate input.
+   * Requirements:
+   *
+   * - `campaignName` must not exist.
+   * - `_accounts.length` equal `_amounts.length`.
+   *
+   */
+
+  function _validateCampaign(
+    string memory _campaignName,
+    address[] memory _accounts,
+    uint256[] memory _amounts,
+    bool[] memory _listPassive
+  ) private view {
+    bool isNotExist = participants[_campaignName].length == 0;
+    uint256 numberOfAccount = _accounts.length;
+    uint256 numberOfAmount = _amounts.length;
+    uint256 numberOfPassive = _listPassive.length;
+
+    require(isNotExist, "Can't set this time!");
+
+    require(
+      numberOfAccount > 0 && numberOfAmount > 0 && numberOfPassive > 0,
+      "Amounts, accounts and list passive can't be zero!"
+    );
+    require(
+      numberOfAccount == numberOfAmount && numberOfAmount == numberOfPassive,
+      "Amounts and accounts not match!"
+    );
+  }
+
+  /**
    *@dev set all admin consent is false.
    */
   function _resetConsensus() private {
@@ -219,5 +316,27 @@ contract CampaignManagement is Pausable {
         emit RemoveAdmin(msg.sender, _account);
       }
     }
+  }
+
+  /**
+   *@dev Set a list of participant to a time and set this participant is true.
+   */
+  function _createCampaign(
+    string memory _campaignName,
+    address[] memory _accounts,
+    uint256[] memory _amounts,
+    bool[] memory _listPassive
+  ) private {
+    _validateCampaign(_campaignName, _accounts, _amounts, _listPassive);
+    uint256 numberOfInvestor = _accounts.length;
+    Participant[] storage listParticipant = participants[_campaignName];
+    for (uint256 i = 0; i < numberOfInvestor; i++) {
+      listParticipant.push(
+        Participant(_accounts[i], _amounts[i], _listPassive[i])
+      );
+      isParticipant[_accounts[i]] = true;
+    }
+    campaigns.push(_campaignName);
+    emit CreateCampaign(_campaignName, _accounts, _amounts);
   }
 }
