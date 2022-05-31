@@ -169,7 +169,7 @@ contract AdminConsensus {
     uint256 adminsLength = _admins.length;
     require(_isAdmin[_account], "Account is not a admin!");
     require(adminsLength > 1, "You are last administrator!");
-    for (uint256 i = 0; i < adminsLength - 1; i++) {
+    for (uint256 i = 0; i < adminsLength; i++) {
       if (_admins[i] == _account) {
         _admins[i] = _admins[adminsLength - 1];
         _admins.pop();
