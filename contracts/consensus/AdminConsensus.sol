@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /**
@@ -9,7 +8,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
  *@title smart contract for features admin consensus
  */
 
-contract AdminConsensus is Pausable {
+contract AdminConsensus {
   /**
    *@dev Using safe math library for uint256.
    */
@@ -41,30 +40,17 @@ contract AdminConsensus is Pausable {
   /***
     @dev array save all admin address.
    */
-  address[] private _admins;
+  address[] internal _admins;
 
   /***
     @dev Mapping from address to admin or not.
    */
-  mapping(address => bool) private _isAdmin;
+  mapping(address => bool) internal _isAdmin;
 
   /***
     @dev Mapping from address to admin consent or not.
    */
   mapping(address => bool) public adminConsent;
-
-  /***
-    @dev struct for a participant.
-   */
-  struct Participant {
-    address account;
-    uint256 amount;
-  }
-
-  /***
-    @dev Mapping from campaign to participants.
-   */
-  mapping(string => Participant[]) private _participants;
 
   /***
     @dev Set address token. Deployer is a admin.
@@ -146,23 +132,6 @@ contract AdminConsensus is Pausable {
   function adminReject() public onlyAdmin {
     adminConsent[msg.sender] = false;
     emit AdminReject(msg.sender);
-  }
-
-  /***
-    @dev Stop when an emergency occurs.
-   */
-
-  function pause() public onlyAdmin hasConsensus(false) {
-    _pause();
-    _resetConsensus();
-  }
-
-  /***
-    @dev Continue to operate normally.
-   */
-  function unpause() public onlyAdmin hasConsensus(false) {
-    _unpause();
-    _resetConsensus();
   }
 
   /**
