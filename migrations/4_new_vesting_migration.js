@@ -7,7 +7,7 @@ function isAddress(address) {
   return address ? address.match(/^0x[a-fA-F0-9]{40}$/) : false;
 }
 const path = {
-  window: "C:\\Users\\Admin\\Desktop\\import1.xlsx",
+  window: "C:\\Users\\Admin\\Desktop\\quynhln.xlsx",
   linux: "/home/tuandoquoc/Desktop/tuanimport.xlsx",
 };
 module.exports = async function (deployer) {
@@ -62,14 +62,14 @@ module.exports = async function (deployer) {
 
   let sheet1Data = await getSheet1Data();
   let sheet2Data = await getSheet2Data(1, 2);
-  let data = convertData(sheet2Data, sheet1Data, 1, 4, 46, 50, 92);
+  let data = convertData(sheet2Data, sheet1Data, 1, 4, 28, 32, 56);
   let currentDate = new Date("2021/07");
   let times = Array.from(new Array(31), (el, index) => {
     return Math.round(
       new Date("2021/07").setMonth(currentDate.getMonth() + index + 1) / 1000
     );
   });
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < data.length; i++) {
     let item = data[i];
     let id = item.id;
     // let newOwner = item.address;
