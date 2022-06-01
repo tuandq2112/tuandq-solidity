@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
  *@author tuandq
  *@title this smart contract as a marketplace. Users can buy and sell nft by IVI tokens.
  */
-contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
+contract NFT is ERC721, ERC721URIStorage, Ownable {
   ///@notice tự tăng id theo biến này
   using Counters for Counters.Counter;
   Counters.Counter private _tokenIdCounter;
@@ -119,7 +119,6 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
     _setTokenURI(tokenId, uri);
     _customOwners[tokenId] = to;
     _addItem(tokenId, to);
-    _inStore[tokenId] = false;
   }
 
   function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
@@ -153,7 +152,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
   ///@notice bán nft nếu là người sở hữu nft, giá tiền phải > 0 và nft chưa được bán
   function sellNft(uint256 tokenId, uint256 amount) public {
     require(msg.sender == _customOwners[tokenId], "Address is not owner");
-    require(_inStore[tokenId], "Token had been sell");
+    require(!_inStore[tokenId], "Token had been sell");
     _addToStore(tokenId);
     _tokenIdToPrice[tokenId] = amount;
     _inStore[tokenId] = true;
@@ -164,7 +163,7 @@ contract IVIRSENFT is ERC721, ERC721URIStorage, Ownable {
   ///@notice mua nếu token được ủy quyển = giá của nft
   ///@dev giá của nft lấy trong _tokenIdToPrice được set giá khi mua
   function purchase(uint256 tokenId) public {
-    require(!_inStore[tokenId], "Token had been bought");
+    require(_inStore[tokenId], "Token had been bought");
     require(
       _token.allowance(msg.sender, address(this)) >= _tokenIdToPrice[tokenId],
       "Not enough token"
