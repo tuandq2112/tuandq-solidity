@@ -3,3 +3,11 @@ ganache-cli --accounts=100
 cant' compare 2 bignumber
 
 truffle migrate -f 1 --to 1 --network bsc
+
+
+//add
+ganache-cli --account="fb48ab6b9df7c3ee7adc24c1dbe0b3875aaf88871d44be340ebe7db8ebe314c8,9000000000000000000000"
+ganache-cli --defaultBalanceEther 9000000000000000000000
+
+
+default account deploy account[0]

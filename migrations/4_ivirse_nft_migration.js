@@ -1,8 +1,8 @@
-const IVIRSENFT = artifacts.require("IVIRSENFT");
-const IVIRSE = artifacts.require("IVIRSE");
+const NFT = artifacts.require("NFT");
+const Token = artifacts.require("Token");
 
 module.exports = async function (deployer) {
-  deployer.deploy(IVIRSE).then(() => {
-    return deployer.deploy(IVIRSENFT, IVIRSE.address);
+  deployer.deploy(Token).then(() => {
+    return deployer.deploy(NFT, Token.address);
   });
 };
