@@ -45,7 +45,7 @@ contract AdminConsensus {
   /***
     @dev Mapping from address to admin or not.
    */
-  mapping(address => bool) internal _isAdmin;
+  mapping(address => bool) public isAdmin;
 
   /***
     @dev Mapping from address to admin consent or not.
@@ -63,7 +63,7 @@ contract AdminConsensus {
    *@dev Throws if called by sender other than admin.
    */
   modifier onlyAdmin() {
-    require(_isAdmin[msg.sender], "The sender is not admin!");
+    require(isAdmin[msg.sender], "The sender is not admin!");
     _;
   }
 
@@ -148,7 +148,7 @@ contract AdminConsensus {
    */
   function _addAdmin(address _account) private {
     _admins.push(_account);
-    _isAdmin[_account] = true;
+    isAdmin[_account] = true;
     _resetConsensus();
     emit AddAdmin(msg.sender, _account);
   }
@@ -167,13 +167,13 @@ contract AdminConsensus {
    */
   function _removeAdmin(address _account) private {
     uint256 adminsLength = _admins.length;
-    require(_isAdmin[_account], "Account is not a admin!");
+    require(isAdmin[_account], "Account is not a admin!");
     require(adminsLength > 1, "You are last administrator!");
     for (uint256 i = 0; i < adminsLength; i++) {
       if (_admins[i] == _account) {
         _admins[i] = _admins[adminsLength - 1];
         _admins.pop();
-        _isAdmin[_account] = false;
+        isAdmin[_account] = false;
         emit RemoveAdmin(msg.sender, _account);
       }
     }
