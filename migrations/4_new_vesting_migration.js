@@ -7,8 +7,8 @@ function isAddress(address) {
   return address ? address.match(/^0x[a-fA-F0-9]{40}$/) : false;
 }
 const path = {
-  window: "C:\\Users\\Admin\\Desktop\\future.xlsx",
-  linux: "/home/tuandoquoc/Desktop/tuanimport.xlsx",
+  window: "C:\\Users\\Admin\\Desktop\\test1.xlsx",
+  linux: "/home/tuandoquoc/Desktop/test1.xlsx",
 };
 
 const time = {
@@ -16,7 +16,7 @@ const time = {
   now: "2020/05",
   future: "2022/06",
 };
-const strDate = time.future;
+const strDate = time.now;
 module.exports = async function (deployer) {
   let successArr = [];
   let errorArr = [];
@@ -68,7 +68,7 @@ module.exports = async function (deployer) {
   }
 
   let sheet1Data = await getSheet1Data();
-  let sheet2Data = await getSheet2Data(1, 2);
+  let sheet2Data = await getSheet2Data(0, 1);
   let data = convertData(sheet2Data, sheet1Data, 1, 4, 28, 32, 56);
   let currentDate = new Date(strDate);
   let times = Array.from(new Array(31), (el, index) => {
@@ -79,9 +79,7 @@ module.exports = async function (deployer) {
   for (let i = 0; i < data.length; i++) {
     let item = data[i];
     let id = item.id;
-    // let newOwner = item.address;
-
-    let newOwner = "0x26c404D5D4F429Ba54a51124637c783cfd45E3d0";
+    let newOwner = item.address;
     let seedCoin = item.seed;
     let privateCoin = item.private;
 
