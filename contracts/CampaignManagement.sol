@@ -4,22 +4,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./consensus/AdminConsensus.sol";
+import "./ICampaignManagement.sol";
 
 /**
  *@author tuan.dq
  *@title Smart contract for campaigns
  */
 
-contract CampaignManagement is AdminConsensus {
-  /**
-   *@dev struct for a participant.
-   */
-  struct Participant {
-    address account;
-    uint256 amount;
-    bool passive;
-  }
-
+contract CampaignManagement is ICampaignManagement, AdminConsensus {
   /**
    *@dev Using safe math library for uin256
    */
@@ -36,43 +28,19 @@ contract CampaignManagement is AdminConsensus {
   IERC20 private _token;
 
   /**
-   *  @dev  Emitted when `ADMIN` create campaign.
-   */
-  event CreateCampaign(
-    string campaignName,
-    address[] accounts,
-    uint256[] amounts
-  );
-
-  /**
-   *  @dev  Emitted when `account` is accepted consent.
-   */
-  event AdminAcceptRelease(address indexed account, string indexed campaign);
-
-  /**
-   *  @dev  Emitted when `account` is rejected consent.
-   */
-  event AdminRejectRelease(address indexed account, string indexed campaign);
-
-  /**
-   *  @dev  Emitted when `ADMIN` release token.
-   */
-  event Release(string campaignName);
-
-  /**
    *  @dev array save all campaign name.
    */
-  string[] public campaigns;
+  string[] private _campaignNames;
+
+  /**
+   *@dev data by times
+   */
+  DataByTime[] private _datas;
 
   /**
    *  @dev Mapping from campaign to participants.
    */
-  mapping(string => Participant[]) private participants;
-
-  /**
-   *  @dev mapping from campaign to claimed.
-   */
-  mapping(string => bool) public isClaimed;
+  mapping(string => Campaign) private _campaigns;
 
   /**
    *  @dev Mapping from campaign to participants.
@@ -85,10 +53,25 @@ contract CampaignManagement is AdminConsensus {
   mapping(address => bool) public isParticipant;
 
   /**
+   *@dev total token released
+   */
+
+  uint256 private _issueToken;
+
+  /**
    *  @dev Set address token. Deployer is a admin.
    */
-  constructor(IERC20 token_) {
+  constructor(
+    IERC20 token_,
+    uint256[] memory times,
+    uint256[] memory amounts
+  ) {
     _token = token_;
+    uint256 fractions = 10**uint256(18);
+    _validateTimesAndAmounts(times, amounts);
+    for (uint256 i = 0; i < amounts.length; i++) {
+      _datas.push(DataByTime(times[i], amounts[i] * fractions));
+    }
   }
 
   /**
@@ -97,10 +80,20 @@ contract CampaignManagement is AdminConsensus {
   function createCampaign(
     string memory campaignName,
     address[] memory accounts,
-    uint256[] memory amounts,
-    bool[] memory listPassive
+    uint256[] memory amounts
   ) public onlyAdmin {
-    _createCampaign(campaignName, accounts, amounts, listPassive);
+    _createOrUpdateCampaign(campaignName, accounts, amounts, false);
+  }
+
+  /**
+   *@dev Create campaign
+   */
+  function updateCampaign(
+    string memory campaignName,
+    address[] memory accounts,
+    uint256[] memory amounts
+  ) public onlyAdmin {
+    _createOrUpdateCampaign(campaignName, accounts, amounts, true);
   }
 
   /**
@@ -119,6 +112,49 @@ contract CampaignManagement is AdminConsensus {
     emit AdminRejectRelease(msg.sender, campaign);
   }
 
+  /**
+   *@dev Create campaign
+   */
+  function release(string memory campaignName, bool passive) public onlyAdmin {
+    require(!_campaigns[campaignName].isClaimed, "Campaign ended!");
+
+    _checkConsensus(campaignName);
+    Participant[] memory listParticipant = _campaigns[campaignName]
+      .participants;
+    for (uint256 i = 0; i < listParticipant.length; i++) {
+      Participant memory participant = listParticipant[i];
+      if (passive) {
+        _token.safeIncreaseAllowance(participant.account, participant.amount);
+      } else {
+        _token.safeTransfer(participant.account, participant.amount);
+      }
+    }
+    _campaigns[campaignName].isClaimed = true;
+    emit Release(campaignName);
+  }
+
+  /**
+   *@dev
+   * Validate input.
+   * Requirements:
+   *
+   * - `campaignName` must not exist.
+   * - `_accounts.length` equal `_amounts.length`.
+   *
+   */
+  function _validateTimesAndAmounts(
+    uint256[] memory _unlockTimes,
+    uint256[] memory _amounts
+  ) private pure {
+    uint256 numberOfTime = _unlockTimes.length;
+    uint256 numberOfAmount = _amounts.length;
+    require(
+      numberOfTime > 0 && numberOfAmount > 0,
+      "Times, accounts can't be zero!"
+    );
+    require(numberOfTime == numberOfAmount, "Times and accounts not match!");
+  }
+
   function _checkConsensus(string memory _name) private view {
     uint256 totalCampaignConsensus = 0;
     uint256 adminsLength = _admins.length;
@@ -132,25 +168,6 @@ contract CampaignManagement is AdminConsensus {
   }
 
   /**
-   *@dev Create campaign
-   */
-  function release(string memory campaignName) public onlyAdmin {
-    require(!isClaimed[campaignName], "Campaign ended!");
-    _checkConsensus(campaignName);
-    Participant[] memory listParticipant = participants[campaignName];
-    for (uint256 i = 0; i < listParticipant.length; i++) {
-      Participant memory participant = listParticipant[i];
-      if (participant.passive) {
-        _token.safeTransfer(participant.account, participant.amount);
-      } else {
-        _token.safeIncreaseAllowance(participant.account, participant.amount);
-      }
-    }
-    isClaimed[campaignName] = true;
-    emit Release(campaignName);
-  }
-
-  /**
    *@dev
    * Validate input.
    * Requirements:
@@ -159,48 +176,120 @@ contract CampaignManagement is AdminConsensus {
    * - `_accounts.length` equal `_amounts.length`.
    *
    */
-  function _validateCampaign(
-    string memory _campaignName,
+  function _validateAccountsAndAmounts(
     address[] memory _accounts,
-    uint256[] memory _amounts,
-    bool[] memory _listPassive
-  ) private view {
-    bool isNotExist = participants[_campaignName].length == 0;
+    uint256[] memory _amounts
+  ) private pure {
     uint256 numberOfAccount = _accounts.length;
     uint256 numberOfAmount = _amounts.length;
-    uint256 numberOfPassive = _listPassive.length;
-
-    require(isNotExist, "Can't set this time!");
-
     require(
-      numberOfAccount > 0 && numberOfAmount > 0 && numberOfPassive > 0,
-      "Amounts, accounts and list passive can't be zero!"
+      numberOfAccount > 0 && numberOfAmount > 0,
+      "Amounts, accounts can't be zero!"
     );
-    require(
-      numberOfAccount == numberOfAmount && numberOfAmount == numberOfPassive,
-      "Amounts and accounts not match!"
-    );
+    require(numberOfAccount == numberOfAmount, "Amounts and times not match!");
+  }
+
+  /**
+   *@dev Total token unlocked.
+   */
+  function _getTotalTokenUnlock() private view returns (uint256) {
+    uint256 totalTokenUnlock = 0;
+    uint256 currentTime = block.timestamp;
+    for (uint256 i = 0; i < _datas.length; i++) {
+      if (currentTime >= _datas[i].unlockTime) {
+        totalTokenUnlock += _datas[i].amount;
+      }
+    }
+    return totalTokenUnlock;
+  }
+
+  /**
+   *@dev Total token in a campaign.
+   */
+  function _getTokensByName(string memory campaignName)
+    private
+    view
+    returns (uint256)
+  {
+    uint256 totalToken = 0;
+    Participant[] memory listParticipant = _campaigns[campaignName]
+      .participants;
+
+    for (uint256 i = 0; i < listParticipant.length; i++) {
+      Participant memory participant = listParticipant[i];
+      totalToken += participant.amount;
+    }
+    return totalToken;
   }
 
   /**
    *@dev Set a list of participant to a time and set this participant is true.
    */
-  function _createCampaign(
+  function _createOrUpdateCampaign(
     string memory _campaignName,
     address[] memory _accounts,
     uint256[] memory _amounts,
-    bool[] memory _listPassive
+    bool _isUpdate
   ) private {
-    _validateCampaign(_campaignName, _accounts, _amounts, _listPassive);
-    uint256 numberOfInvestor = _accounts.length;
-    Participant[] storage listParticipant = participants[_campaignName];
-    for (uint256 i = 0; i < numberOfInvestor; i++) {
-      listParticipant.push(
-        Participant(_accounts[i], _amounts[i], _listPassive[i])
-      );
+    bool isExist = _campaigns[_campaignName].participants.length > 0;
+    require(
+      (isExist && _isUpdate) || (!isExist && !_isUpdate),
+      _isUpdate
+        ? "Can't update campaign that doesn't exist!"
+        : "Unable to create a new campaign that already exists!"
+    );
+
+    _validateAccountsAndAmounts(_accounts, _amounts);
+
+    uint256 tokenUnlocked = _getTotalTokenUnlock();
+    if (_isUpdate) {
+      uint256 oldToken = _getTokensByName(_campaignName);
+      _issueToken -= oldToken;
+
+      delete _campaigns[_campaignName].participants;
+    } else {
+      _campaignNames.push(_campaignName);
+    }
+    uint256 tokenCanUse = tokenUnlocked - _issueToken;
+    uint256 totalAmount = 0;
+    for (uint256 i = 0; i < _amounts.length; i++) {
+      totalAmount += _amounts[i];
+    }
+
+    require(tokenCanUse >= totalAmount, "Exceed the amount available!");
+
+    Participant[] storage listParticipant = _campaigns[_campaignName]
+      .participants;
+    for (uint256 i = 0; i < _accounts.length; i++) {
+      listParticipant.push(Participant(_accounts[i], _amounts[i]));
       isParticipant[_accounts[i]] = true;
     }
-    campaigns.push(_campaignName);
-    emit CreateCampaign(_campaignName, _accounts, _amounts);
+    _issueToken += totalAmount;
+
+    emit ChangeCampaign(_campaignName, _accounts, _amounts, _isUpdate);
+  }
+
+  function getDatas() public view returns (DataByTime[] memory) {
+    return _datas;
+  }
+
+  function getCampaigns() public view returns (string[] memory) {
+    return _campaignNames;
+  }
+
+  function getParticipants(string memory campaignName)
+    public
+    view
+    returns (Participant[] memory)
+  {
+    return _campaigns[campaignName].participants;
+  }
+
+  function getTotalTokenUnlock() public view returns (uint256) {
+    return _getTotalTokenUnlock();
+  }
+
+  function getTotalCanUse() public view returns (uint256) {
+    return _getTotalTokenUnlock() - _issueToken;
   }
 }

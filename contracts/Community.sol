@@ -43,7 +43,7 @@ contract Community is AdminConsensus, CommunityInterface {
    *  @dev  Admin accept for batch release token.
    */
   function adminAcceptRelease(string memory name) public onlyAdmin {
-    _adminConsents[name][msg.sender] = true;
+    // _adminConsents[name][msg.sender] = true;
     // emit AdminAcceptRelease(msg.sender, name);
   }
 
@@ -51,7 +51,7 @@ contract Community is AdminConsensus, CommunityInterface {
    *  @dev  Admin reject for batch release token.
    */
   function adminRejectRelease(string memory name) public onlyAdmin {
-    _adminConsents[name][msg.sender] = false;
+    // _adminConsents[name][msg.sender] = false;
     // emit AdminRejectRelease(msg.sender, name);
   }
 }
