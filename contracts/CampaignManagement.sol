@@ -63,14 +63,14 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
    */
   constructor(
     IERC20 token_,
-    uint256[] memory times,
-    uint256[] memory amounts
+    uint256[] memory times_,
+    uint256[] memory amounts_
   ) {
     _token = token_;
     uint256 fractions = 10**uint256(18);
-    _validateTimesAndAmounts(times, amounts);
-    for (uint256 i = 0; i < amounts.length; i++) {
-      _datas.push(DataByTime(times[i], amounts[i] * fractions));
+    _validateTimesAndAmounts(times_, amounts_);
+    for (uint256 i = 0; i < amounts_.length; i++) {
+      _datas.push(DataByTime(times_[i], amounts_[i] * fractions));
     }
   }
 
@@ -80,9 +80,16 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
   function createCampaign(
     string memory campaignName,
     address[] memory accounts,
-    uint256[] memory amounts
+    uint256[] memory amounts,
+    uint256 releaseTime
   ) public onlyAdmin {
-    _createOrUpdateCampaign(campaignName, accounts, amounts, false);
+    _createOrUpdateCampaign(
+      campaignName,
+      accounts,
+      amounts,
+      releaseTime,
+      false
+    );
   }
 
   /**
@@ -91,9 +98,10 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
   function updateCampaign(
     string memory campaignName,
     address[] memory accounts,
-    uint256[] memory amounts
+    uint256[] memory amounts,
+    uint256 releaseTime
   ) public onlyAdmin {
-    _createOrUpdateCampaign(campaignName, accounts, amounts, true);
+    _createOrUpdateCampaign(campaignName, accounts, amounts, releaseTime, true);
   }
 
   /**
@@ -116,6 +124,11 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
    *@dev Create campaign
    */
   function release(string memory campaignName, bool passive) public onlyAdmin {
+    require(
+      block.timestamp >= _campaigns[campaignName].releaseTime,
+      "It's not time yet!"
+    );
+
     require(!_campaigns[campaignName].isClaimed, "Campaign ended!");
 
     _checkConsensus(campaignName);
@@ -229,6 +242,7 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     string memory _campaignName,
     address[] memory _accounts,
     uint256[] memory _amounts,
+    uint256 releaseTime,
     bool _isUpdate
   ) private {
     bool isExist = _campaigns[_campaignName].participants.length > 0;
@@ -265,6 +279,7 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
       isParticipant[_accounts[i]] = true;
     }
     _issueToken += totalAmount;
+    _campaigns[_campaignName].releaseTime = releaseTime;
 
     emit ChangeCampaign(_campaignName, _accounts, _amounts, _isUpdate);
   }
@@ -277,12 +292,12 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     return _campaignNames;
   }
 
-  function getParticipants(string memory campaignName)
+  function getCampaign(string memory campaignName)
     public
     view
-    returns (Participant[] memory)
+    returns (Campaign memory)
   {
-    return _campaigns[campaignName].participants;
+    return _campaigns[campaignName];
   }
 
   function getTotalTokenUnlock() public view returns (uint256) {
@@ -292,4 +307,5 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
   function getTotalCanUse() public view returns (uint256) {
     return _getTotalTokenUnlock() - _issueToken;
   }
+
 }

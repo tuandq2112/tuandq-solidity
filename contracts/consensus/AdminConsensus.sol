@@ -50,7 +50,12 @@ contract AdminConsensus {
   /***
     @dev Mapping from address to admin consent or not.
    */
-  mapping(address => bool) public adminConsent;
+  mapping(address => mapping(address => bool)) public adminConsentAccept;
+
+  /***
+    @dev Mapping from address to admin consent or not.
+   */
+  mapping(address => mapping(address => bool)) public adminConsentReject;
 
   /***
     @dev Set address token. Deployer is a admin.
@@ -67,23 +72,24 @@ contract AdminConsensus {
     _;
   }
 
-  /**
-   * @dev Throw if not more than half consensus.
-   */
-  modifier hasConsensus(bool isRevoke) {
-    uint256 totalConsensus = 0;
-    uint256 adminsLength = _admins.length;
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (adminConsent[_admins[i]]) {
-        totalConsensus++;
-      }
-    }
-    uint256 haftVote = adminsLength.div(2) + (!isRevoke ? 1 : 0);
-    require(totalConsensus >= haftVote, "Not enough consensus!");
-    _;
-  }
+  // /**
+  //  * @dev Throw if not more than half consensus.
+  //  */
+  // modifier hasAccepConsensus(bool isRevoke) {
+  //   uint256 totalConsensus = 0;
+  //   uint256 adminsLength = _admins.length;
+  //   for (uint256 i = 0; i < adminsLength; i++) {
+  //     if (adminConsent[_admins[i]]) {
+  //       totalConsensus++;
+  //     }
+  //   }
+  //   uint256 haftVote = adminsLength.div(2) + (!isRevoke ? 1 : 0);
+  //   require(totalConsensus >= haftVote, "Not enough consensus!");
+  //   _;
+  // }
 
-  function addAdmin(address account) public onlyAdmin hasConsensus(false) {
+  function addAdmin(address account) public onlyAdmin {
+    _checkAcceptConsensus(account);
     _addAdmin((account));
   }
 
@@ -96,13 +102,10 @@ contract AdminConsensus {
    *
    */
 
-  function revokeAdminRole(address account)
-    public
-    onlyAdmin
-    hasConsensus(true)
-  {
+  function revokeAdminRole(address account) public onlyAdmin {
+    _checkRejectConsensus(account);
     _removeAdmin(account);
-    _resetConsensus();
+    _resetRejectConsensus(account);
   }
 
   /***
@@ -116,30 +119,37 @@ contract AdminConsensus {
 
   function renounceAdminRole() public onlyAdmin {
     _removeAdmin(msg.sender);
+    _resetRejectConsensus(msg.sender);
   }
 
   /***
     @dev  Admin consent.
    */
-  function adminAccept() public onlyAdmin {
-    adminConsent[msg.sender] = true;
+  function adminAccept(address newAdmin) public onlyAdmin {
+    adminConsentAccept[newAdmin][msg.sender] = true;
     emit AdminAccept(msg.sender);
   }
 
   /***
     @dev  Admin reject.
    */
-  function adminReject() public onlyAdmin {
-    adminConsent[msg.sender] = false;
+  function adminReject(address oldAdmin) public onlyAdmin {
+    adminConsentReject[oldAdmin][msg.sender] = true;
     emit AdminReject(msg.sender);
   }
 
   /**
    *@dev set all admin consent is false.
    */
-  function _resetConsensus() private {
+  function _resetAcceptConsensus(address persion) private {
     for (uint256 i = 0; i < _admins.length; i++) {
-      adminConsent[_admins[i]] = false;
+      adminConsentAccept[persion][_admins[i]] = false;
+    }
+  }
+
+  function _resetRejectConsensus(address persion) private {
+    for (uint256 i = 0; i < _admins.length; i++) {
+      adminConsentReject[persion][_admins[i]] = false;
     }
   }
 
@@ -149,7 +159,7 @@ contract AdminConsensus {
   function _addAdmin(address _account) private {
     _admins.push(_account);
     isAdmin[_account] = true;
-    _resetConsensus();
+    _resetAcceptConsensus(_account);
     emit AddAdmin(msg.sender, _account);
   }
 
@@ -177,5 +187,29 @@ contract AdminConsensus {
         emit RemoveAdmin(msg.sender, _account);
       }
     }
+  }
+
+  function _checkAcceptConsensus(address _newAdmin) public view {
+    uint64 totalConsensus = 0;
+    uint256 adminsLength = _admins.length;
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (adminConsentAccept[_newAdmin][_admins[i]]) {
+        totalConsensus++;
+      }
+    }
+    uint256 haftVote = adminsLength.div(2) + 1;
+    require(totalConsensus >= haftVote, "Not enough consensus!");
+  }
+
+  function _checkRejectConsensus(address _oldAdmin) public view {
+    uint64 totalConsensus = 0;
+    uint256 adminsLength = _admins.length;
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (adminConsentReject[_oldAdmin][_admins[i]]) {
+        totalConsensus++;
+      }
+    }
+    uint256 haftVote = adminsLength.div(2) + 1;
+    require(totalConsensus >= haftVote, "Not enough consensus!");
   }
 }

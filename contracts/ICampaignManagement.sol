@@ -28,6 +28,7 @@ interface ICampaignManagement {
   struct Campaign {
     Participant[] participants;
     bool isClaimed;
+    uint256 releaseTime;
   }
   /**
    *  @dev  Emitted when `ADMIN` create campaign.
