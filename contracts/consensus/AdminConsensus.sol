@@ -2,51 +2,24 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./IAdminConsensus.sol";
 
 /**
  *@author tuan.dq
  *@title smart contract for features admin consensus
  */
 
-contract AdminConsensus {
+contract AdminConsensus is IAdminConsensus {
   /**
    *@dev Using safe math library for uint256.
    */
   using SafeMath for uint256;
 
-  /***
-    @dev Variables and events for admin
+  /**
+   *  @dev Variables for admin
    */
-
   /***
-    @dev  Emitted when has new `ADMIN`.
-   */
-  event AddAdmin(address indexed performer, address indexed newAdmin);
-
-  /***
-    @dev  Emitted when remove a `ADMIN`.
-   */
-  event RemoveAdmin(address indexed performer, address indexed adminRemoved);
-  /***
-    @dev  Emitted when `account` is accepted consent.
-   */
-  event AdminAcceptAdd(address indexed admin, address newAdmin);
-
-  /***
-    @dev  Emitted when `account` is rejected consent.
-   */
-  event AdminRejectAdd(address indexed admin, address newAdmin);
-
-  /***
-    @dev  Emitted when `account` is accepted consent.
-   */
-  event AdminAcceptRevoke(address indexed admin, address oldAdmin);
-
-  /***
-    @dev  Emitted when `account` is rejected consent.
-   */
-  event AdminRejectRevoke(address indexed admin, address oldAdmin);
-
+ 
   /***
     @dev array save all admin address.
    */
@@ -82,11 +55,93 @@ contract AdminConsensus {
     _;
   }
 
-  function addAdmin(address account) public onlyAdmin {
-    adminConsentAccept[account][msg.sender] = true;
-    emit AdminAcceptAdd(msg.sender, account);
-    _checkAcceptConsensus(account);
+  // modifier isAdmin(address account) {
+  //   require(isAdmin[account], "Account is not a admin!");
+  //   _;
+  // }
+
+  modifier notAdmin(address account) {
+    require(!isAdmin[account], "Account was a admin!");
+    _;
+  }
+
+  modifier confirmedAdd(address account) {
+    require(
+      adminConsentAccept[account][msg.sender],
+      "Account not already confirmed add!"
+    );
+    _;
+  }
+  modifier notConfirmedAdd(address account) {
+    require(
+      !adminConsentAccept[account][msg.sender],
+      "Account already confirmed add!"
+    );
+    _;
+  }
+  modifier confirmedRevoke(address account) {
+    require(
+      adminConsentReject[account][msg.sender],
+      "Account not already confirmed revoke!"
+    );
+    _;
+  }
+  modifier notConfirmedRevoke(address account) {
+    require(
+      !adminConsentReject[account][msg.sender],
+      "Account already confirmed revoke!"
+    );
+    _;
+  }
+
+  modifier enoughAcceptConsensus(address account) {
+    _adminAcceptAdd(account);
+    uint64 totalConsensus = 0;
+    uint256 adminsLength = _admins.length;
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (adminConsentAccept[account][_admins[i]]) {
+        totalConsensus++;
+      }
+    }
+    require(totalConsensus * 2 > adminsLength, "Not enough consensus!");
+    _;
+    _resetAcceptConsensus(account);
+  }
+
+  modifier enoughRevokeConsensus(address account) {
+    _adminAcceptRevoke(account);
+    uint64 totalConsensus = 0;
+    uint256 adminsLength = _admins.length;
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (adminConsentReject[account][_admins[i]]) {
+        totalConsensus++;
+      }
+    }
+    require(totalConsensus * 2 > adminsLength - 1, "Not enough consensus!");
+    _;
+    _resetRejectConsensus(account);
+  }
+
+  function addAdmin(address account)
+    public
+    override
+    onlyAdmin
+    enoughAcceptConsensus(account)
+  {
     _addAdmin((account));
+  }
+
+  /**
+   *   @dev
+   * The sender actively gives up admin rights.
+   * Requirements:
+   *
+   * - `msg.sender` has admin role.
+   *
+   */
+
+  function renounceAdminRole() public override onlyAdmin {
+    _renounceAdminRole();
   }
 
   /**
@@ -97,59 +152,61 @@ contract AdminConsensus {
    * - `msg.sender` has admin role.
    *
    */
-
-  function revokeAdminRole(address account) public onlyAdmin {
-    adminConsentReject[account][msg.sender] = true;
-    emit AdminRejectRevoke(msg.sender, account);
-    _checkRevokeConsensus(account);
-    _removeAdmin(account);
-    _resetRejectConsensus(account);
-  }
-
-  /***
-     @dev 
-     * The sender actively gives up admin rights.
-     * Requirements:
-     *
-     * - `msg.sender` has admin role.
-     *
-   */
-
-  function renounceAdminRole() public onlyAdmin {
-    _removeAdmin(msg.sender);
-    _resetRejectConsensus(msg.sender);
+  function revokeAdminRole(address account)
+    public
+    override
+    onlyAdmin
+    enoughRevokeConsensus(account)
+  {
+    _revokeAdminRole(account);
   }
 
   /***
     @dev  Admin consent.
    */
-  function adminAcceptAdd(address newAdmin) public onlyAdmin {
-    adminConsentAccept[newAdmin][msg.sender] = true;
-    emit AdminAcceptAdd(msg.sender, newAdmin);
+  function adminAcceptAdd(address account)
+    public
+    override
+    onlyAdmin
+    notConfirmedAdd(account)
+  {
+    _adminAcceptAdd(account);
   }
 
   /***
     @dev  Admin reject.
    */
-  function adminRejectAdd(address newAdmin) public onlyAdmin {
-    adminConsentAccept[newAdmin][msg.sender] = true;
-    emit AdminRejectAdd(msg.sender, newAdmin);
+  function adminRejectAdd(address account)
+    public
+    override
+    onlyAdmin
+    confirmedAdd(account)
+  {
+    _adminRejectAdd(account);
   }
 
   /***
     @dev  Admin consent.
    */
-  function adminAcceptRevoke(address oldAdmin) public onlyAdmin {
-    adminConsentReject[oldAdmin][msg.sender] = true;
-    emit AdminAcceptRevoke(msg.sender, oldAdmin);
+  function adminAcceptRevoke(address account)
+    public
+    override
+    onlyAdmin
+    notConfirmedRevoke(account)
+  {
+    _adminAcceptRevoke(account);
   }
 
   /***
     @dev  Admin reject.
    */
-  function adminRejectRevoke(address oldAdmin) public onlyAdmin {
-    adminConsentReject[oldAdmin][msg.sender] = true;
-    emit AdminRejectRevoke(msg.sender, oldAdmin);
+  function adminRejectRevoke(address account)
+    public
+    override
+    onlyAdmin
+    confirmedRevoke(account)
+  {
+    _adminRejectRevoke(account);
   }
 
   /**
@@ -173,7 +230,6 @@ contract AdminConsensus {
   function _addAdmin(address _account) private {
     _admins.push(_account);
     isAdmin[_account] = true;
-    _resetAcceptConsensus(_account);
     emit AddAdmin(msg.sender, _account);
   }
 
@@ -204,25 +260,44 @@ contract AdminConsensus {
     emit RemoveAdmin(msg.sender, _account);
   }
 
-  function _checkAcceptConsensus(address _newAdmin) public view {
-    uint64 totalConsensus = 0;
-    uint256 adminsLength = _admins.length;
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (adminConsentAccept[_newAdmin][_admins[i]]) {
-        totalConsensus++;
-      }
-    }
-    require(totalConsensus * 2 > adminsLength, "Not enough consensus!");
+  function _revokeAdminRole(address _account) private {
+    _removeAdmin(_account);
   }
 
-  function _checkRevokeConsensus(address _oldAdmin) public view {
-    uint64 totalConsensus = 0;
-    uint256 adminsLength = _admins.length;
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (adminConsentReject[_oldAdmin][_admins[i]]) {
-        totalConsensus++;
-      }
-    }
-    require(totalConsensus * 2 > adminsLength - 1, "Not enough consensus!");
+  function _renounceAdminRole() private {
+    _removeAdmin(msg.sender);
+    _resetRejectConsensus(msg.sender);
+  }
+
+  /***
+    @dev  Admin consent.
+   */
+  function _adminAcceptAdd(address _account) private {
+    adminConsentAccept[_account][msg.sender] = true;
+    emit AdminAcceptAdd(msg.sender, _account);
+  }
+
+  /***
+    @dev  Admin reject.
+   */
+  function _adminRejectAdd(address _account) private {
+    adminConsentAccept[_account][msg.sender] = true;
+    emit AdminRejectAdd(msg.sender, _account);
+  }
+
+  /***
+    @dev  Admin consent.
+   */
+  function _adminAcceptRevoke(address _account) private {
+    adminConsentReject[_account][msg.sender] = true;
+    emit AdminAcceptRevoke(msg.sender, _account);
+  }
+
+  /***
+    @dev  Admin reject.
+   */
+  function _adminRejectRevoke(address _account) private {
+    adminConsentReject[_account][msg.sender] = true;
+    emit AdminRejectRevoke(msg.sender, _account);
   }
 }
