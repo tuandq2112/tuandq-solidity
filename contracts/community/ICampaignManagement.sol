@@ -53,4 +53,37 @@ interface ICampaignManagement {
    *  @dev  Emitted when `ADMIN` release token.
    */
   event Release(string campaignName);
+
+  function createCampaign(
+    string memory campaignName,
+    address[] memory accounts,
+    uint256[] memory amounts,
+    uint256 releaseTime
+  ) external;
+
+  function updateCampaign(
+    string memory campaignName,
+    address[] memory accounts,
+    uint256[] memory amounts,
+    uint256 releaseTime
+  ) external;
+
+  function adminAcceptRelease(string memory campaign) external;
+
+  function adminRejectRelease(string memory campaign) external;
+
+  function release(string memory campaignName, bool passive) external;
+
+  function getDatas() external view returns (DataByTime[] memory);
+
+  function getCampaigns() external view returns (string[] memory);
+
+  function getCampaign(string memory campaignName)
+    external
+    view
+    returns (Campaign memory);
+
+  function getTotalTokenUnlock() external view returns (uint256);
+
+  function getTotalCanUse() external view returns (uint256);
 }

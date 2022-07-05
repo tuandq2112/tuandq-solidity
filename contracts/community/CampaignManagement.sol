@@ -58,6 +58,37 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
 
   uint256 private _issueToken;
 
+  modifier enoughReleaseConsensus(string memory campaignName) {
+    _adminAcceptRelease(campaignName);
+    uint256 totalCampaignConsensus = 0;
+    uint256 adminsLength = _admins.length;
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (_adminConsents[campaignName][_admins[i]]) {
+        totalCampaignConsensus++;
+      }
+    }
+    require(
+      totalCampaignConsensus >= adminsLength.div(2) + 1,
+      "Not enough consensus!"
+    );
+    _;
+  }
+
+  modifier confirmedRelease(string memory campaignName) {
+    require(
+      _adminConsents[campaignName][msg.sender],
+      "Account not already confirmed release!"
+    );
+    _;
+  }
+  modifier notConfirmedRelease(string memory campaignName) {
+    require(
+      !_adminConsents[campaignName][msg.sender],
+      "Account already confirmed release!"
+    );
+    _;
+  }
+
   /**
    *  @dev Set address token. Deployer is a admin.
    */
@@ -82,7 +113,7 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     address[] memory accounts,
     uint256[] memory amounts,
     uint256 releaseTime
-  ) public onlyAdmin {
+  ) public override onlyAdmin {
     _createOrUpdateCampaign(
       campaignName,
       accounts,
@@ -100,30 +131,43 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     address[] memory accounts,
     uint256[] memory amounts,
     uint256 releaseTime
-  ) public onlyAdmin {
+  ) public override onlyAdmin {
     _createOrUpdateCampaign(campaignName, accounts, amounts, releaseTime, true);
   }
 
   /**
    *  @dev  Admin accept for campaign release token.
    */
-  function adminAcceptRelease(string memory campaign) public onlyAdmin {
-    _adminConsents[campaign][msg.sender] = true;
-    emit AdminAcceptRelease(msg.sender, campaign);
+  function adminAcceptRelease(string memory campaign)
+    public
+    override
+    onlyAdmin
+    notConfirmedRelease(campaign)
+  {
+    _adminAcceptRelease(campaign);
   }
 
   /**
    *  @dev  Admin reject for campaign release token.
    */
-  function adminRejectRelease(string memory campaign) public onlyAdmin {
-    _adminConsents[campaign][msg.sender] = false;
-    emit AdminRejectRelease(msg.sender, campaign);
+  function adminRejectRelease(string memory campaign)
+    public
+    override
+    onlyAdmin
+    confirmedRelease(campaign)
+  {
+    _adminRejectRelease(campaign);
   }
 
   /**
    *@dev Create campaign
    */
-  function release(string memory campaignName, bool passive) public onlyAdmin {
+  function release(string memory campaignName, bool passive)
+    public
+    override
+    onlyAdmin
+    enoughReleaseConsensus(campaignName)
+  {
     require(
       block.timestamp >= _campaigns[campaignName].releaseTime,
       "It's not time yet!"
@@ -131,7 +175,6 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
 
     require(!_campaigns[campaignName].isClaimed, "Campaign ended!");
 
-    _checkConsensus(campaignName);
     Participant[] memory listParticipant = _campaigns[campaignName]
       .participants;
     for (uint256 i = 0; i < listParticipant.length; i++) {
@@ -144,6 +187,31 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     }
     _campaigns[campaignName].isClaimed = true;
     emit Release(campaignName);
+  }
+
+  function getDatas() public view override returns (DataByTime[] memory) {
+    return _datas;
+  }
+
+  function getCampaigns() public view override returns (string[] memory) {
+    return _campaignNames;
+  }
+
+  function getCampaign(string memory campaignName)
+    public
+    view
+    override
+    returns (Campaign memory)
+  {
+    return _campaigns[campaignName];
+  }
+
+  function getTotalTokenUnlock() public view override returns (uint256) {
+    return _getTotalTokenUnlock();
+  }
+
+  function getTotalCanUse() public view override returns (uint256) {
+    return _getTotalTokenUnlock() - _issueToken;
   }
 
   /**
@@ -168,18 +236,6 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     require(numberOfTime == numberOfAmount, "Times and accounts not match!");
   }
 
-  function _checkConsensus(string memory _name) private view {
-    uint256 totalCampaignConsensus = 0;
-    uint256 adminsLength = _admins.length;
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (_adminConsents[_name][_admins[i]]) {
-        totalCampaignConsensus++;
-      }
-    }
-    uint256 haftVote = adminsLength.div(2) + 1;
-    require(totalCampaignConsensus >= haftVote, "Not enough consensus!");
-  }
-
   /**
    *@dev
    * Validate input.
@@ -200,39 +256,6 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
       "Amounts, accounts can't be zero!"
     );
     require(numberOfAccount == numberOfAmount, "Amounts and times not match!");
-  }
-
-  /**
-   *@dev Total token unlocked.
-   */
-  function _getTotalTokenUnlock() private view returns (uint256) {
-    uint256 totalTokenUnlock = 0;
-    uint256 currentTime = block.timestamp;
-    for (uint256 i = 0; i < _datas.length; i++) {
-      if (currentTime >= _datas[i].unlockTime) {
-        totalTokenUnlock += _datas[i].amount;
-      }
-    }
-    return totalTokenUnlock;
-  }
-
-  /**
-   *@dev Total token in a campaign.
-   */
-  function _getTokensByName(string memory campaignName)
-    private
-    view
-    returns (uint256)
-  {
-    uint256 totalToken = 0;
-    Participant[] memory listParticipant = _campaigns[campaignName]
-      .participants;
-
-    for (uint256 i = 0; i < listParticipant.length; i++) {
-      Participant memory participant = listParticipant[i];
-      totalToken += participant.amount;
-    }
-    return totalToken;
   }
 
   /**
@@ -284,28 +307,46 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     emit ChangeCampaign(_campaignName, _accounts, _amounts, _isUpdate);
   }
 
-  function getDatas() public view returns (DataByTime[] memory) {
-    return _datas;
+  function _adminAcceptRelease(string memory _campaign) private {
+    _adminConsents[_campaign][msg.sender] = true;
+    emit AdminAcceptRelease(msg.sender, _campaign);
   }
 
-  function getCampaigns() public view returns (string[] memory) {
-    return _campaignNames;
+  function _adminRejectRelease(string memory _campaign) private {
+    _adminConsents[_campaign][msg.sender] = false;
+    emit AdminRejectRelease(msg.sender, _campaign);
   }
 
-  function getCampaign(string memory campaignName)
-    public
+  /**
+   *@dev Total token unlocked.
+   */
+  function _getTotalTokenUnlock() private view returns (uint256) {
+    uint256 totalTokenUnlock = 0;
+    uint256 currentTime = block.timestamp;
+    for (uint256 i = 0; i < _datas.length; i++) {
+      if (currentTime >= _datas[i].unlockTime) {
+        totalTokenUnlock += _datas[i].amount;
+      }
+    }
+    return totalTokenUnlock;
+  }
+
+  /**
+   *@dev Total token in a campaign.
+   */
+  function _getTokensByName(string memory campaignName)
+    private
     view
-    returns (Campaign memory)
+    returns (uint256)
   {
-    return _campaigns[campaignName];
-  }
+    uint256 totalToken = 0;
+    Participant[] memory listParticipant = _campaigns[campaignName]
+      .participants;
 
-  function getTotalTokenUnlock() public view returns (uint256) {
-    return _getTotalTokenUnlock();
+    for (uint256 i = 0; i < listParticipant.length; i++) {
+      Participant memory participant = listParticipant[i];
+      totalToken += participant.amount;
+    }
+    return totalToken;
   }
-
-  function getTotalCanUse() public view returns (uint256) {
-    return _getTotalTokenUnlock() - _issueToken;
-  }
-
 }
