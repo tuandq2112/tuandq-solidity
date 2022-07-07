@@ -281,7 +281,7 @@ contract AdminConsensus is IAdminConsensus {
     @dev  Admin reject.
    */
   function _adminRejectAdd(address _account) private {
-    adminConsentAccept[_account][msg.sender] = true;
+    adminConsentAccept[_account][msg.sender] = false;
     emit AdminRejectAdd(msg.sender, _account);
   }
 
@@ -297,7 +297,7 @@ contract AdminConsensus is IAdminConsensus {
     @dev  Admin reject.
    */
   function _adminRejectRevoke(address _account) private {
-    adminConsentReject[_account][msg.sender] = true;
+    adminConsentReject[_account][msg.sender] = false;
     emit AdminRejectRevoke(msg.sender, _account);
   }
 }
