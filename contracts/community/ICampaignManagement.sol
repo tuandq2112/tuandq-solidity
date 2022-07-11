@@ -78,6 +78,8 @@ interface ICampaignManagement {
 
   function getCampaigns() external view returns (string[] memory);
 
+  function getConsensusByName(string memory campaignName) external view returns (uint256);
+
   function getCampaign(string memory campaignName)
     external
     view

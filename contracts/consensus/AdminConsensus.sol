@@ -300,4 +300,8 @@ contract AdminConsensus is IAdminConsensus {
     adminConsentReject[_account][msg.sender] = false;
     emit AdminRejectRevoke(msg.sender, _account);
   }
+
+  function getAdmins() public view returns (address[] memory) {
+    return _admins;
+  }
 }

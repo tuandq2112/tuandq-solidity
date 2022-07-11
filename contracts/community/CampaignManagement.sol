@@ -60,13 +60,8 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
 
   modifier enoughReleaseConsensus(string memory campaignName) {
     _adminAcceptRelease(campaignName);
-    uint256 totalCampaignConsensus = 0;
+    uint256 totalCampaignConsensus = _getConsensusByName(campaignName);
     uint256 adminsLength = _admins.length;
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (_adminConsents[campaignName][_admins[i]]) {
-        totalCampaignConsensus++;
-      }
-    }
     require(
       totalCampaignConsensus >= adminsLength.div(2) + 1,
       "Not enough consensus!"
@@ -214,6 +209,15 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     return _getTotalTokenUnlock() - _issueToken;
   }
 
+  function getConsensusByName(string memory campaignName)
+    public
+    view
+    override
+    returns (uint256)
+  {
+    return _getConsensusByName(campaignName);
+  }
+
   /**
    *@dev
    * Validate input.
@@ -348,5 +352,19 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
       totalToken += participant.amount;
     }
     return totalToken;
+  }
+
+  function _getConsensusByName(string memory campaignName)
+    private
+    view
+    returns (uint256 totalCampaignConsensus)
+  {
+    uint256 adminsLength = _admins.length;
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (_adminConsents[campaignName][_admins[i]]) {
+        totalCampaignConsensus++;
+      }
+    }
+    return totalCampaignConsensus;
   }
 }
