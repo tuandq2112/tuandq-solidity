@@ -365,6 +365,5 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
         totalCampaignConsensus++;
       }
     }
-    return totalCampaignConsensus;
   }
 }

@@ -96,13 +96,8 @@ contract AdminConsensus is IAdminConsensus {
 
   modifier enoughAcceptConsensus(address account) {
     _adminAcceptAdd(account);
-    uint64 totalConsensus = 0;
+    uint256 totalConsensus = _getConsensusAcceptByAddress(account);
     uint256 adminsLength = _admins.length;
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (adminConsentAccept[account][_admins[i]]) {
-        totalConsensus++;
-      }
-    }
     require(totalConsensus * 2 > adminsLength, "Not enough consensus!");
     _;
     _resetAcceptConsensus(account);
@@ -110,13 +105,8 @@ contract AdminConsensus is IAdminConsensus {
 
   modifier enoughRevokeConsensus(address account) {
     _adminAcceptRevoke(account);
-    uint64 totalConsensus = 0;
+    uint256 totalConsensus = _getConsensusRevokeByAddress(account);
     uint256 adminsLength = _admins.length;
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (adminConsentReject[account][_admins[i]]) {
-        totalConsensus++;
-      }
-    }
     require(totalConsensus * 2 > adminsLength - 1, "Not enough consensus!");
     _;
     _resetRejectConsensus(account);
@@ -207,6 +197,28 @@ contract AdminConsensus is IAdminConsensus {
     confirmedRevoke(account)
   {
     _adminRejectRevoke(account);
+  }
+
+  function getConsensusAcceptByAddress(address account)
+    public
+    view
+    override
+    returns (uint256)
+  {
+    return _getConsensusAcceptByAddress(account);
+  }
+
+  function getConsensusRevokeByAddress(address account)
+    public
+    view
+    override
+    returns (uint256)
+  {
+    return _getConsensusRevokeByAddress(account);
+  }
+
+  function getAdmins() public view override returns (address[] memory) {
+    return _admins;
   }
 
   /**
@@ -301,7 +313,33 @@ contract AdminConsensus is IAdminConsensus {
     emit AdminRejectRevoke(msg.sender, _account);
   }
 
-  function getAdmins() public view returns (address[] memory) {
-    return _admins;
+  function _getConsensusAcceptByAddress(address _account)
+    private
+    view
+    returns (uint256 totalAcceptConsensus)
+  {
+    uint256 adminsLength = _admins.length;
+
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (adminConsentAccept[_account][_admins[i]]) {
+        totalAcceptConsensus++;
+      }
+    }
+    return totalAcceptConsensus;
+  }
+
+  function _getConsensusRevokeByAddress(address _account)
+    private
+    view
+    returns (uint256 totalRevokeConsensus)
+  {
+    uint256 adminsLength = _admins.length;
+
+    for (uint256 i = 0; i < adminsLength; i++) {
+      if (adminConsentReject[_account][_admins[i]]) {
+        totalRevokeConsensus++;
+      }
+    }
+    return totalRevokeConsensus;
   }
 }

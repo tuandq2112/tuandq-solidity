@@ -47,4 +47,16 @@ interface IAdminConsensus {
   function adminAcceptRevoke(address _account) external;
 
   function adminRejectRevoke(address _account) external;
+
+  function getConsensusAcceptByAddress(address _account)
+    external
+    view
+    returns (uint256);
+
+  function getConsensusRevokeByAddress(address _account)
+    external
+    view
+    returns (uint256);
+
+  function getAdmins() external view returns (address[] memory);
 }
