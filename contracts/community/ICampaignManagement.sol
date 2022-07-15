@@ -7,6 +7,16 @@ pragma solidity ^0.8.4;
  */
 
 interface ICampaignManagement {
+  enum ConsentStatus {
+    NoAction,
+    Accept,
+    Reject
+  }
+  enum CampaignStatus {
+    NoAction,
+    Release,
+    Delete
+  }
   /**
    *@dev struct for data in once time.
    */
@@ -27,7 +37,7 @@ interface ICampaignManagement {
    */
   struct Campaign {
     Participant[] participants;
-    bool isClaimed;
+    CampaignStatus status;
     uint256 releaseTime;
   }
   /**
@@ -39,6 +49,10 @@ interface ICampaignManagement {
     uint256[] amounts,
     bool isUpdate
   );
+  /**
+   *  @dev  Emitted when `ADMIN` delete campaign.
+   */
+  event DeleteCampaign(string indexed campaignName, address indexed account);
   /**
    *  @dev  Emitted when `account` is accepted consent.
    */
@@ -74,11 +88,16 @@ interface ICampaignManagement {
 
   function release(string memory campaignName, bool passive) external;
 
+  function deleteCampaign(string memory campaignName) external;
+
   function getDatas() external view returns (DataByTime[] memory);
 
   function getCampaigns() external view returns (string[] memory);
 
-  function getConsensusByName(string memory campaignName) external view returns (uint256);
+  function getConsensusByNameAndStatus(
+    string memory campaignName,
+    ConsentStatus status
+  ) external view returns (uint256);
 
   function getCampaign(string memory campaignName)
     external

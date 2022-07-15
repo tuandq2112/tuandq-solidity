@@ -45,7 +45,7 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
   /**
    *  @dev Mapping from campaign to participants.
    */
-  mapping(string => mapping(address => bool)) private _adminConsents;
+  mapping(string => mapping(address => ConsentStatus)) private _adminConsents;
 
   /**
    *  @dev Mapping from address to participant or not.
@@ -59,11 +59,26 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
   uint256 private _issueToken;
 
   modifier enoughReleaseConsensus(string memory campaignName) {
-    _adminAcceptRelease(campaignName);
-    uint256 totalCampaignConsensus = _getConsensusByName(campaignName);
+    uint256 totalCampaignConsensus = _getConsensusByNameAndStatus(
+      campaignName,
+      ConsentStatus.Accept
+    );
     uint256 adminsLength = _admins.length;
     require(
-      totalCampaignConsensus >= adminsLength.div(2) + 1,
+      totalCampaignConsensus > adminsLength.div(2),
+      "Not enough consensus!"
+    );
+    _;
+  }
+
+  modifier enoughDeleteConsensus(string memory campaignName) {
+    uint256 totalCampaignConsensus = _getConsensusByNameAndStatus(
+      campaignName,
+      ConsentStatus.Reject
+    );
+    uint256 adminsLength = _admins.length;
+    require(
+      totalCampaignConsensus > adminsLength.div(2),
       "Not enough consensus!"
     );
     _;
@@ -71,14 +86,14 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
 
   modifier confirmedRelease(string memory campaignName) {
     require(
-      _adminConsents[campaignName][msg.sender],
+      (_adminConsents[campaignName][msg.sender] != ConsentStatus.Reject),
       "Account not already confirmed release!"
     );
     _;
   }
   modifier notConfirmedRelease(string memory campaignName) {
     require(
-      !_adminConsents[campaignName][msg.sender],
+      (_adminConsents[campaignName][msg.sender] != ConsentStatus.Accept),
       "Account already confirmed release!"
     );
     _;
@@ -168,7 +183,10 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
       "It's not time yet!"
     );
 
-    require(!_campaigns[campaignName].isClaimed, "Campaign ended!");
+    require(
+      (_campaigns[campaignName].status == CampaignStatus.NoAction),
+      "Campaign ended!"
+    );
 
     Participant[] memory listParticipant = _campaigns[campaignName]
       .participants;
@@ -180,8 +198,22 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
         _token.safeTransfer(participant.account, participant.amount);
       }
     }
-    _campaigns[campaignName].isClaimed = true;
+    _campaigns[campaignName].status = CampaignStatus.Release;
     emit Release(campaignName);
+  }
+
+  function deleteCampaign(string memory campaignName)
+    public
+    override
+    onlyAdmin
+    enoughDeleteConsensus(campaignName)
+  {
+    require(
+      (_campaigns[campaignName].status == CampaignStatus.NoAction),
+      "Campaign ended!"
+    );
+    _campaigns[campaignName].status == CampaignStatus.Delete;
+    emit DeleteCampaign(campaignName, msg.sender);
   }
 
   function getDatas() public view override returns (DataByTime[] memory) {
@@ -209,13 +241,11 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     return _getTotalTokenUnlock() - _issueToken;
   }
 
-  function getConsensusByName(string memory campaignName)
-    public
-    view
-    override
-    returns (uint256)
-  {
-    return _getConsensusByName(campaignName);
+  function getConsensusByNameAndStatus(
+    string memory campaignName,
+    ConsentStatus status
+  ) public view override returns (uint256) {
+    return _getConsensusByNameAndStatus(campaignName, status);
   }
 
   /**
@@ -312,12 +342,12 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
   }
 
   function _adminAcceptRelease(string memory _campaign) private {
-    _adminConsents[_campaign][msg.sender] = true;
+    _adminConsents[_campaign][msg.sender] = ConsentStatus.Accept;
     emit AdminAcceptRelease(msg.sender, _campaign);
   }
 
   function _adminRejectRelease(string memory _campaign) private {
-    _adminConsents[_campaign][msg.sender] = false;
+    _adminConsents[_campaign][msg.sender] = ConsentStatus.Reject;
     emit AdminRejectRelease(msg.sender, _campaign);
   }
 
@@ -354,14 +384,13 @@ contract CampaignManagement is ICampaignManagement, AdminConsensus {
     return totalToken;
   }
 
-  function _getConsensusByName(string memory campaignName)
-    private
-    view
-    returns (uint256 totalCampaignConsensus)
-  {
+  function _getConsensusByNameAndStatus(
+    string memory campaignName,
+    ConsentStatus status
+  ) private view returns (uint256 totalCampaignConsensus) {
     uint256 adminsLength = _admins.length;
     for (uint256 i = 0; i < adminsLength; i++) {
-      if (_adminConsents[campaignName][_admins[i]]) {
+      if (_adminConsents[campaignName][_admins[i]] == status) {
         totalCampaignConsensus++;
       }
     }
