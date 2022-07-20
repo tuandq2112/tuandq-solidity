@@ -33,12 +33,7 @@ contract AdminConsensus is IAdminConsensus {
   /***
     @dev Mapping from address to admin consent or not.
    */
-  mapping(address => mapping(address => bool)) public adminConsentAccept;
-
-  /***
-    @dev Mapping from address to admin consent or not.
-   */
-  mapping(address => mapping(address => bool)) public adminConsentReject;
+  mapping(address => mapping(address => ConsentStatus)) public adminConsents;
 
   /***
     @dev Set address token. Deployer is a admin.
@@ -55,59 +50,51 @@ contract AdminConsensus is IAdminConsensus {
     _;
   }
 
-  // modifier isAdmin(address account) {
-  //   require(isAdmin[account], "Account is not a admin!");
-  //   _;
-  // }
-
   modifier notAdmin(address account) {
     require(!isAdmin[account], "Account was a admin!");
     _;
   }
 
-  modifier confirmedAdd(address account) {
+  modifier hasRoleAdmin(address account) {
+    require(isAdmin[account], "Account was a admin!");
+    _;
+  }
+
+  modifier confirmed(address account) {
     require(
-      adminConsentAccept[account][msg.sender],
-      "Account not already confirmed add!"
+      adminConsents[account][msg.sender] != ConsentStatus.Reject,
+      "Account not already confirmed !"
     );
     _;
   }
-  modifier notConfirmedAdd(address account) {
+  modifier notConfirmed(address account) {
     require(
-      !adminConsentAccept[account][msg.sender],
-      "Account already confirmed add!"
-    );
-    _;
-  }
-  modifier confirmedRevoke(address account) {
-    require(
-      adminConsentReject[account][msg.sender],
-      "Account not already confirmed revoke!"
-    );
-    _;
-  }
-  modifier notConfirmedRevoke(address account) {
-    require(
-      !adminConsentReject[account][msg.sender],
-      "Account already confirmed revoke!"
+      adminConsents[account][msg.sender] != ConsentStatus.Accept,
+      "Account already confirmed !"
     );
     _;
   }
 
   modifier enoughAcceptConsensus(address account) {
-    uint256 totalConsensus = _getConsensusAcceptByAddress(account);
+    uint256 totalConsensus = _getAdminConsensusByAddressAndStatus(
+      account,
+      ConsentStatus.Accept
+    );
     uint256 adminsLength = _admins.length;
     require(totalConsensus * 2 > adminsLength, "Not enough consensus!");
     _;
-    _resetAcceptConsensus(account);
+    _resetConsensus(account);
   }
 
   modifier enoughRevokeConsensus(address account) {
-    uint256 totalConsensus = _getConsensusRevokeByAddress(account);
+    uint256 totalConsensus = _getAdminConsensusByAddressAndStatus(
+      account,
+      ConsentStatus.Reject
+    );
     uint256 adminsLength = _admins.length;
     require(totalConsensus * 2 > adminsLength - 1, "Not enough consensus!");
     _;
-    _resetRejectConsensus(account);
+    _resetConsensus(account);
   }
 
   function addAdmin(address account)
@@ -145,6 +132,7 @@ contract AdminConsensus is IAdminConsensus {
     override
     onlyAdmin
     enoughRevokeConsensus(account)
+    hasRoleAdmin(account)
   {
     _revokeAdminRole(account);
   }
@@ -152,67 +140,32 @@ contract AdminConsensus is IAdminConsensus {
   /***
     @dev  Admin consent.
    */
-  function adminAcceptAdd(address account)
+  function adminAccept(address account)
     public
     override
     onlyAdmin
-    notConfirmedAdd(account)
+    notConfirmed(account)
   {
-    _adminAcceptAdd(account);
+    _adminAccept(account);
   }
 
   /***
     @dev  Admin reject.
    */
-  function adminRejectAdd(address account)
+  function adminReject(address account)
     public
     override
     onlyAdmin
-    confirmedAdd(account)
+    confirmed(account)
   {
-    _adminRejectAdd(account);
+    _adminReject(account);
   }
 
-  /***
-    @dev  Admin consent.
-   */
-  function adminAcceptRevoke(address account)
-    public
-    override
-    onlyAdmin
-    notConfirmedRevoke(account)
-  {
-    _adminAcceptRevoke(account);
-  }
-
-  /***
-    @dev  Admin reject.
-   */
-  function adminRejectRevoke(address account)
-    public
-    override
-    onlyAdmin
-    confirmedRevoke(account)
-  {
-    _adminRejectRevoke(account);
-  }
-
-  function getConsensusAcceptByAddress(address account)
-    public
-    view
-    override
-    returns (uint256)
-  {
-    return _getConsensusAcceptByAddress(account);
-  }
-
-  function getConsensusRevokeByAddress(address account)
-    public
-    view
-    override
-    returns (uint256)
-  {
-    return _getConsensusRevokeByAddress(account);
+  function getAdminConsensusByAddressAndStatus(
+    address account,
+    ConsentStatus status
+  ) public view override returns (uint256) {
+    return _getAdminConsensusByAddressAndStatus(account, status);
   }
 
   function getAdmins() public view override returns (address[] memory) {
@@ -222,15 +175,9 @@ contract AdminConsensus is IAdminConsensus {
   /**
    *@dev set all admin consent is false.
    */
-  function _resetAcceptConsensus(address persion) private {
+  function _resetConsensus(address persion) private {
     for (uint256 i = 0; i < _admins.length; i++) {
-      adminConsentAccept[persion][_admins[i]] = false;
-    }
-  }
-
-  function _resetRejectConsensus(address persion) private {
-    for (uint256 i = 0; i < _admins.length; i++) {
-      adminConsentReject[persion][_admins[i]] = false;
+      adminConsents[persion][_admins[i]] = ConsentStatus.NoAction;
     }
   }
 
@@ -276,68 +223,36 @@ contract AdminConsensus is IAdminConsensus {
 
   function _renounceAdminRole() private {
     _removeAdmin(msg.sender);
-    _resetRejectConsensus(msg.sender);
+    _resetConsensus(msg.sender);
   }
 
   /***
     @dev  Admin consent.
    */
-  function _adminAcceptAdd(address _account) private {
-    adminConsentAccept[_account][msg.sender] = true;
-    emit AdminAcceptAdd(msg.sender, _account);
+  function _adminAccept(address _account) private {
+    adminConsents[_account][msg.sender] = ConsentStatus.Accept;
+    emit AdminAccept(msg.sender, _account);
   }
 
   /***
     @dev  Admin reject.
    */
-  function _adminRejectAdd(address _account) private {
-    adminConsentAccept[_account][msg.sender] = false;
-    emit AdminRejectAdd(msg.sender, _account);
+  function _adminReject(address _account) private {
+    adminConsents[_account][msg.sender] = ConsentStatus.Reject;
+    emit AdminReject(msg.sender, _account);
   }
 
-  /***
-    @dev  Admin consent.
-   */
-  function _adminAcceptRevoke(address _account) private {
-    adminConsentReject[_account][msg.sender] = true;
-    emit AdminAcceptRevoke(msg.sender, _account);
-  }
-
-  /***
-    @dev  Admin reject.
-   */
-  function _adminRejectRevoke(address _account) private {
-    adminConsentReject[_account][msg.sender] = false;
-    emit AdminRejectRevoke(msg.sender, _account);
-  }
-
-  function _getConsensusAcceptByAddress(address _account)
-    private
-    view
-    returns (uint256 totalAcceptConsensus)
-  {
+  function _getAdminConsensusByAddressAndStatus(
+    address _account,
+    ConsentStatus _status
+  ) private view returns (uint256 totalConsensus) {
     uint256 adminsLength = _admins.length;
 
     for (uint256 i = 0; i < adminsLength; i++) {
-      if (adminConsentAccept[_account][_admins[i]]) {
-        totalAcceptConsensus++;
+      if (adminConsents[_account][_admins[i]] == _status) {
+        totalConsensus++;
       }
     }
-    return totalAcceptConsensus;
-  }
-
-  function _getConsensusRevokeByAddress(address _account)
-    private
-    view
-    returns (uint256 totalRevokeConsensus)
-  {
-    uint256 adminsLength = _admins.length;
-
-    for (uint256 i = 0; i < adminsLength; i++) {
-      if (adminConsentReject[_account][_admins[i]]) {
-        totalRevokeConsensus++;
-      }
-    }
-    return totalRevokeConsensus;
+    return totalConsensus;
   }
 }

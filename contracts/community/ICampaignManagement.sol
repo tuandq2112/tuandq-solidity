@@ -7,7 +7,7 @@ pragma solidity ^0.8.4;
  */
 
 interface ICampaignManagement {
-  enum ConsentStatus {
+  enum AdminConsentStatus {
     NoAction,
     Accept,
     Reject
@@ -96,7 +96,7 @@ interface ICampaignManagement {
 
   function getConsensusByNameAndStatus(
     string memory campaignName,
-    ConsentStatus status
+    AdminConsentStatus status
   ) external view returns (uint256);
 
   function getCampaign(string memory campaignName)

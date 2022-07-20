@@ -2,6 +2,11 @@
 pragma solidity ^0.8.4;
 
 interface IAdminConsensus {
+  enum ConsentStatus {
+    NoAction,
+    Accept,
+    Reject
+  }
   /**
    *  @dev Variables and events for admin
    */
@@ -17,22 +22,12 @@ interface IAdminConsensus {
   /***
     @dev  Emitted when `account` is accepted consent.
    */
-  event AdminAcceptAdd(address indexed admin, address newAdmin);
+  event AdminAccept(address indexed admin, address newAdmin);
 
   /***
     @dev  Emitted when `account` is rejected consent.
    */
-  event AdminRejectAdd(address indexed admin, address newAdmin);
-
-  /***
-    @dev  Emitted when `account` is accepted consent.
-   */
-  event AdminAcceptRevoke(address indexed admin, address oldAdmin);
-
-  /***
-    @dev  Emitted when `account` is rejected consent.
-   */
-  event AdminRejectRevoke(address indexed admin, address oldAdmin);
+  event AdminReject(address indexed admin, address newAdmin);
 
   function addAdmin(address account) external;
 
@@ -40,20 +35,11 @@ interface IAdminConsensus {
 
   function renounceAdminRole() external;
 
-  function adminAcceptAdd(address _account) external;
+  function adminAccept(address _account) external;
 
-  function adminRejectAdd(address _account) external;
+  function adminReject(address _account) external;
 
-  function adminAcceptRevoke(address _account) external;
-
-  function adminRejectRevoke(address _account) external;
-
-  function getConsensusAcceptByAddress(address _account)
-    external
-    view
-    returns (uint256);
-
-  function getConsensusRevokeByAddress(address _account)
+  function getAdminConsensusByAddressAndStatus(address account, ConsentStatus status)
     external
     view
     returns (uint256);
